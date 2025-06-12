@@ -1,1 +1,62 @@
 @import "tailwindcss";
+
+@plugin "daisyui" {
+  themes: all;
+}
+
+@plugin "daisyui/theme" {
+  name: "fieldstone";
+  default: false;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(0.9448 0.0029 128.49);
+  --color-base-200: oklch(0.8921 0.0046 134.85);
+  --color-base-300: oklch(0.833 0.0043 157.16);
+  --color-base-content: oklch(0.2764 0.0169 222.09);
+  --color-primary: oklch(0.3539 0.024 231.56);
+  --color-primary-content: oklch(0.9409 0.0059 239.82);
+  --color-secondary: oklch(0.6249 0.1133 39.31);
+  --color-secondary-content: oklch(0.9619 0.011 63.36);
+  --color-accent: oklch(0.6541 0.068 124.71);
+  --color-accent-content: oklch(0.9634 0.0155 126.82);
+  --color-neutral: oklch(0.6277 0.0221 234.08);
+  --color-neutral-content: oklch(0.9846 0.0017 247.84);
+  --color-info: oklch(0.6575 0.0689 204.28);
+  --color-info-content: oklch(0.9715 0.0119 209.81);
+  --color-success: oklch(0.5531 0.0666 144.61);
+  --color-success-content: oklch(0.9542 0.0159 148.41);
+  --color-warning: oklch(0.6683 0.1171 70.36);
+  --color-warning-content: oklch(0.9664 0.0256 84.59);
+  --color-error: oklch(0.4425 0.1261 15.09);
+  --color-error-content: oklch(0.9497 0.0174 17.46);
+  --radius-selector: 0.25rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@import url('https://cdn.tged.tech/css/fieldstone.css');
+
+/* Font Styling */
+/* Quicksand */
+/* Headings, Logo */
+.font-quicksand {
+  font-family: "Quicksand", sans-serif;
+  font-optical-sizing: auto;
+  font-style: normal;
+}
+
+/* Nunito Sans */
+/* Main UI Font */
+.font-nunito-sans {
+  font-family: "Nunito Sans", sans-serif;
+  font-optical-sizing: auto;
+  font-style: normal;
+  font-variation-settings:
+    "wdth" 100,
+    "YTLC" 500;
+}

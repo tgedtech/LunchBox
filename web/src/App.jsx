@@ -1,16 +1,24 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import NavBar from './components/NavBar2.jsx';
+import Home from './pages/Home';
+import Inventory from './pages/Inventory';
+import ShoppingList from './pages/ShoppingList';
+import Recipes from './pages/Recipes';
 
 function App() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-      <h1 className="text-4xl font-bold text-blue-600 mb-4">Hello Tailwind!</h1>
-      <p className="text-lg text-gray-700">Tailwind is working perfectly 🚀</p>
-      <button className="mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
-        Test Button
-      </button>
+    <div data-theme="fieldstone" className="min-h-screen bg-neutral-content text-base-content">
+      <Router>
+        <NavBar />
+        <main className="p-4">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/shopping-list" element={<ShoppingList />} />
+            <Route path="/recipes" element={<Recipes />} />
+          </Routes>
+        </main>
+      </Router>
     </div>
   );
 }
