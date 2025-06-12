@@ -1,0 +1,23 @@
+# Node modules (both /web and /api)
+web/node_modules/
+api/node_modules/
+
+# Build output (if any in future)
+web/dist/
+api/dist/
+
+# Environment variables
+web/.env
+api/.env
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Vite cache
+web/.vite/
