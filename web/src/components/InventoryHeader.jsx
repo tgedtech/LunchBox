@@ -36,7 +36,7 @@ function InventoryHeader({
             className="btn btn-sm btn-ghost text-base-content hover:text-primary flex items-center space-x-1"
             onClick={() => setShowFilters(!showFilters)}
           >
-            <FilterIcon className="w-5 h-5" />
+            <FilterIcon className="w-5 h-5 text-error" />
             <span>Filters</span>
           </button>
           {onAdd && (
