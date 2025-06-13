@@ -16,15 +16,6 @@ function InventoryHeader({ onAdd, itemCount, filteredCount }) {
             </span>
           </h1>
         </div>
-
-        {onAdd && (
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={onAdd}
-          >
-            + Add Item
-          </button>
-        )}
       </div>
     </div>
   );

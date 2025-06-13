@@ -104,7 +104,7 @@ function Inventory() {
 
       {/* Filters */}
       <div className="bg-base-100 p-4 rounded-lg shadow mb-6 relative">
-        <h2 className="text-lg font-semibold mb-2 text-primary">Filters</h2>
+        <h2 className="text-lg font-semibold mb-2 text-primary font-quicksand font-bold">Filters</h2>
 
         <button
           className="absolute top-4 right-4 text-sm link link-secondary"
