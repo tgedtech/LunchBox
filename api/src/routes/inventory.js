@@ -5,13 +5,16 @@ import authMiddleware from '../middleware/auth.js';
 const prisma = new PrismaClient();
 const router = express.Router();
 
-// GET /inventory — Get all inventory items for current user
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const items = await prisma.inventoryItem.findMany({
-      where: { userId: req.userId },  // SCOPED query
+      where: { userId: req.userId },
       include: {
-        product: true,
+        product: {
+          include: {
+            category: true, // THIS is what makes product.category available!
+          },
+        },
         location: true,
       },
       orderBy: {
@@ -25,7 +28,6 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /inventory — Create a new inventory item
 router.post('/', authMiddleware, async (req, res) => {
   const { productId, locationId, quantity, unit, expiration, opened } = req.body;
 
@@ -38,7 +40,7 @@ router.post('/', authMiddleware, async (req, res) => {
         unit,
         expiration: expiration ? new Date(expiration) : null,
         opened: opened || false,
-        userId: req.userId,  // SCOPED creation
+        userId: req.userId,
       },
     });
     res.status(201).json(item);
@@ -48,13 +50,11 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT /inventory/:id — Update an inventory item
 router.put('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { quantity, unit, expiration, opened, locationId } = req.body;
 
   try {
-    // Check that the item belongs to current user first
     const existing = await prisma.inventoryItem.findUnique({
       where: { id },
     });
@@ -81,12 +81,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /inventory/:id — Delete an inventory item
 router.delete('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Check that the item belongs to current user first
     const existing = await prisma.inventoryItem.findUnique({
       where: { id },
     });
