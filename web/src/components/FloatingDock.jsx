@@ -1,14 +1,16 @@
-// components/FloatingDock.jsx
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import HomeIcon from '../assets/icons/home.svg?react';
 import RecipesIcon from '../assets/icons/books.vertical 1.svg?react';
 import InventoryIcon from '../assets/icons/shippingbox 1.svg?react';
 import ShoppingListIcon from '../assets/icons/cart 1.svg?react';
 import SettingsIcon from '../assets/icons/settings.svg?react';
+import useAuth from '../hooks/useAuth';
 
 const FloatingDock = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const navLinkClass =
     'flex flex-col items-center transition-colors duration-200 text-base-content hover:text-primary';

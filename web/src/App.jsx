@@ -10,28 +10,104 @@ import ManageLocations from './pages/masterdata/ManageLocations';
 import ManageUnits from './pages/masterdata/ManageUnits';
 import ManageStores from './pages/masterdata/ManageStores';
 import FloatingDock from './components/FloatingDock.jsx';
+import { AuthProvider } from './context/AuthProvider';
+import Login from './pages/Login';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
-    <div data-theme="fieldstone" className="min-h-screen bg-neutral-content text-base-content">
-      <Router>
-        <main className="p-4">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/shopping-list" element={<ShoppingList />} />
-            <Route path="/recipes" element={<Recipes />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/settings/products" element={<ManageProducts />} />
-            <Route path="/settings/categories" element={<ManageCategories />} />
-            <Route path="/settings/locations" element={<ManageLocations />} />
-            <Route path="/settings/units" element={<ManageUnits />} />
-            <Route path="/settings/stores" element={<ManageStores />} />
-          </Routes>
-        </main>
-        <FloatingDock />
-      </Router>
-    </div>
+    <AuthProvider>
+      <div data-theme="fieldstone" className="min-h-screen bg-neutral-content text-base-content">
+        <Router>
+          <main className="p-4">
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Home />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/inventory"
+                element={
+                  <ProtectedRoute>
+                    <Inventory />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/shopping-list"
+                element={
+                  <ProtectedRoute>
+                    <ShoppingList />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/recipes"
+                element={
+                  <ProtectedRoute>
+                    <Recipes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/products"
+                element={
+                  <ProtectedRoute>
+                    <ManageProducts />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/categories"
+                element={
+                  <ProtectedRoute>
+                    <ManageCategories />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/locations"
+                element={
+                  <ProtectedRoute>
+                    <ManageLocations />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/units"
+                element={
+                  <ProtectedRoute>
+                    <ManageUnits />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/stores"
+                element={
+                  <ProtectedRoute>
+                    <ManageStores />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </main>
+          <FloatingDock />
+        </Router>
+      </div>
+    </AuthProvider>
   );
 }
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import FilterIcon from '../assets/icons/filter.svg?react';
+import LogOutIcon from '../assets/icons/logout.svg?react';
 
 function InventoryHeader({
   onAdd,
@@ -21,6 +22,11 @@ function InventoryHeader({
       expiration: '',
       sortBy: '',
     });
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   return (
@@ -47,6 +53,13 @@ function InventoryHeader({
               + Add Item
             </button>
           )}
+          <button
+            className="btn btn-sm btn-ghost text-base-content hover:text-primary flex items-center space-x-1"
+            onClick={handleLogout}
+          >
+            <LogOutIcon className="w-5 h-5 text-error" />
+            <span>Log Out</span>
+          </button>
         </div>
       </div>
 
