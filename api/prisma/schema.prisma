@@ -1,0 +1,65 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // hashed password
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventoryItems InventoryItem[]
+}
+
+model ProductCategory {
+  id    String  @id @default(uuid())
+  name  String  @unique
+  products Product[]
+}
+
+model Location {
+  id    String  @id @default(uuid())
+  name  String  @unique
+  inventoryItems InventoryItem[]
+}
+
+model Product {
+  id          String           @id @default(uuid())
+  name        String
+  description String?
+  defaultQuantity String?
+  defaultUnit String?
+  category    ProductCategory? @relation(fields: [categoryId], references: [id])
+  categoryId  String?
+
+  inventoryItems InventoryItem[]
+}
+
+model InventoryItem {
+  id          String   @id @default(uuid())
+  quantity    Float
+  unit        String
+  expiration  DateTime?
+  opened      Boolean  @default(false)
+
+  product     Product  @relation(fields: [productId], references: [id])
+  productId   String
+
+  location    Location @relation(fields: [locationId], references: [id])
+  locationId  String
+
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
