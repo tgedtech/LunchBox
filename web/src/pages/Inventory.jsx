@@ -32,142 +32,58 @@ function Inventory() {
     },
   ];
 
-  // Filters state
   const [filters, setFilters] = useState({
-    name: '',
+    search: '',
     location: '',
     category: '',
     expiration: '',
+    sortBy: '',
   });
 
-  const [sortBy, setSortBy] = useState('');
+  const locations = [...new Set(inventoryItems.map(item => item.location))];
+  const categories = [...new Set(inventoryItems.map(item => item.category))];
+  const expirations = ['None', 'Expired', 'Valid']; // Example values
+  const sortOptions = ['Name A-Z', 'Name Z-A', 'Expiring Soon'];
 
-  // Handle input changes
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  // Clear filters
-  const handleClearFilters = () => {
-    setFilters({
-      name: '',
-      location: '',
-      category: '',
-      expiration: '',
-    });
-  };
-
-  // Filter logic
-  const filteredItems = inventoryItems.filter((item) => {
-    const nameMatch = item.name.toLowerCase().includes(filters.name.toLowerCase());
-    const locationMatch = filters.location ? item.location === filters.location : true;
-    const categoryMatch = filters.category ? item.category === filters.category : true;
-    const expirationMatch =
-      filters.expiration === 'Expired'
-        ? new Date(item.expiration) < new Date()
-        : filters.expiration === 'None'
+  const filteredItems = inventoryItems.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(filters.search.toLowerCase());
+    const matchesLocation = filters.location ? item.location === filters.location : true;
+    const matchesCategory = filters.category ? item.category === filters.category : true;
+    const matchesExpiration =
+      filters.expiration === 'None'
         ? item.expiration === 'None'
-        : true;
+        : filters.expiration === 'Expired'
+          ? item.expiration !== 'None' && new Date(item.expiration) < new Date()
+          : filters.expiration === 'Valid'
+            ? item.expiration !== 'None' && new Date(item.expiration) >= new Date()
+            : true;
 
-    return nameMatch && locationMatch && categoryMatch && expirationMatch;
+    return matchesSearch && matchesLocation && matchesCategory && matchesExpiration;
   });
 
-  // Sort logic
   const sortedItems = [...filteredItems].sort((a, b) => {
-    switch (sortBy) {
-      case 'name':
-        return a.name.localeCompare(b.name);
-      case 'location':
-        return a.location.localeCompare(b.location);
-      case 'category':
-        return a.category.localeCompare(b.category);
-      case 'expiration-newest':
-        return new Date(b.expiration) - new Date(a.expiration);
-      case 'expiration-oldest':
-        return new Date(a.expiration) - new Date(b.expiration);
-      default:
-        return 0;
+    if (filters.sortBy === 'Name A-Z') return a.name.localeCompare(b.name);
+    if (filters.sortBy === 'Name Z-A') return b.name.localeCompare(a.name);
+    if (filters.sortBy === 'Expiring Soon') {
+      const aDate = a.expiration === 'None' ? Infinity : new Date(a.expiration);
+      const bDate = b.expiration === 'None' ? Infinity : new Date(b.expiration);
+      return aDate - bDate;
     }
+    return 0;
   });
 
   return (
     <div className="p-4 pb-24">
       <InventoryHeader
         onAdd={() => console.log('Add new inventory item')}
-        itemCount={inventoryItems.length}
-        filteredCount={sortedItems.length}
+        itemCount={filteredItems.length}
+        filters={filters}
+        setFilters={setFilters}
+        locations={locations}
+        categories={categories}
+        expirations={expirations}
+        sortOptions={sortOptions}
       />
-
-      {/* Filters */}
-      <div className="bg-base-100 p-4 rounded-lg shadow mb-6 relative">
-        <h2 className="text-lg font-semibold mb-2 text-primary font-quicksand font-bold">Filters</h2>
-
-        <button
-          className="absolute top-4 right-4 text-sm link link-secondary"
-          onClick={handleClearFilters}
-        >
-          Clear Filters
-        </button>
-
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-2">
-          <input
-            type="text"
-            name="name"
-            value={filters.name}
-            onChange={handleFilterChange}
-            placeholder="Search by name"
-            className="input input-bordered w-full"
-          />
-          <select
-            name="location"
-            value={filters.location}
-            onChange={handleFilterChange}
-            className="select select-bordered w-full"
-          >
-            <option value="">All Locations</option>
-            <option value="Pantry">Pantry</option>
-            <option value="Freezer">Freezer</option>
-            <option value="Fridge">Fridge</option>
-          </select>
-          <select
-            name="category"
-            value={filters.category}
-            onChange={handleFilterChange}
-            className="select select-bordered w-full"
-          >
-            <option value="">All Categories</option>
-            <option value="Canned Goods">Canned Goods</option>
-            <option value="Meat">Meat</option>
-            <option value="Produce">Produce</option>
-          </select>
-          <select
-            name="expiration"
-            value={filters.expiration}
-            onChange={handleFilterChange}
-            className="select select-bordered w-full"
-          >
-            <option value="">All Expiration</option>
-            <option value="Expired">Expired</option>
-            <option value="None">None</option>
-          </select>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="select select-bordered w-full"
-          >
-            <option value="">Sort By</option>
-            <option value="name">Name</option>
-            <option value="location">Location</option>
-            <option value="category">Category</option>
-            <option value="expiration-newest">Expiration (Newest First)</option>
-            <option value="expiration-oldest">Expiration (Oldest First)</option>
-          </select>
-        </div>
-      </div>
 
       {/* Inventory Table */}
       <div className="overflow-x-auto rounded-lg shadow bg-base-100">
@@ -184,10 +100,7 @@ function Inventory() {
           </thead>
           <tbody>
             {sortedItems.map((item) => (
-              <tr
-                key={item.id}
-                className="transition-opacity duration-300 ease-in-out opacity-100"
-              >
+              <tr key={item.id}>
                 <td className="flex space-x-2">
                   <button className="btn btn-xs btn-primary" onClick={() => console.log(`Consume 1 of ${item.name}`)}>
                     <ConsumeIcon className="w-4 h-4" />
