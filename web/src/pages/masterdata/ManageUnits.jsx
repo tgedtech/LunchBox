@@ -1,13 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from '../../utils/axiosInstance';
 import UnitsTable from '../../components/masterdata/UnitsTable';
 import MasterDataHeader from '../../components/MasterDataHeader';
+import useAuth from '../../hooks/useAuth';
 
 function ManageUnits() {
-  const [units, setUnits] = useState([
-    { id: 1, name: 'piece' },
-    { id: 2, name: 'kg' },
-    { id: 3, name: 'liter' },
-  ]);
+  const { token } = useAuth();
+  const [units, setUnits] = useState([]);
+
+  useEffect(() => {
+    const fetchUnits = async () => {
+      try {
+        const res = await axios.get('/units', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setUnits(res.data);
+      } catch (err) {
+        console.error('Error fetching units:', err);
+      }
+    };
+
+    fetchUnits();
+  }, [token]);
 
   const handleAdd = () => {
     console.log('Add new unit');

@@ -1,13 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from '../../utils/axiosInstance';
 import StoresTable from '../../components/masterdata/StoresTable';
 import MasterDataHeader from '../../components/MasterDataHeader';
+import useAuth from '../../hooks/useAuth';
 
 function ManageStores() {
-  const [stores, setStores] = useState([
-    { id: 1, name: 'Kroger' },
-    { id: 2, name: 'Publix' },
-    { id: 3, name: 'Costco' },
-  ]);
+  const { token } = useAuth();
+  const [stores, setStores] = useState([]);
+
+  useEffect(() => {
+    const fetchStores = async () => {
+      try {
+        const res = await axios.get('/stores', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setStores(res.data);
+      } catch (err) {
+        console.error('Error fetching stores:', err);
+      }
+    };
+
+    fetchStores();
+  }, [token]);
 
   const handleAdd = () => {
     console.log('Add new store');

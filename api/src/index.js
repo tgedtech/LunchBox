@@ -7,6 +7,8 @@ import inventoryRoutes from './routes/inventory.js';
 import productsRoutes from './routes/products.js';
 import locationsRoutes from './routes/locations.js';
 import categoriesRoutes from './routes/categories.js';
+import storesRoutes from './routes/stores.js';
+import unitsRoutes from './routes/units.js';
 
 dotenv.config();   // Load env variables first
 
@@ -16,6 +18,8 @@ app.use(express.json());
 app.use('/products', productsRoutes);
 app.use('/locations', locationsRoutes);
 app.use('/categories', categoriesRoutes);
+app.use('/stores', storesRoutes);
+app.use('/units', unitsRoutes);
 
 // Routes
 app.use('/auth', authRoutes);
