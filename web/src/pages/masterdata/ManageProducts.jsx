@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ProductsTable from '../../components/masterdata/ProductsTable';
+import MasterDataHeader from '../../components/MasterDataHeader';
 
 function ManageProducts() {
   const [products, setProducts] = useState([
@@ -26,6 +27,10 @@ function ManageProducts() {
     },
   ]);
 
+  const handleAdd = () => {
+    console.log('Add new product');
+  };
+
   const handleEdit = (product) => {
     console.log('Edit product:', product);
     // Implement modal or form later
@@ -38,16 +43,7 @@ function ManageProducts() {
 
   return (
     <div className="p-4 pb-24">
-      <h1 className="text-3xl font-quicksand font-bold text-primary mb-6">Manage Products</h1>
-
-      <div className="flex justify-end mb-4">
-        <button
-          className="btn btn-primary"
-          onClick={() => console.log('Add new product')}
-        >
-          + Add Product
-        </button>
-      </div>
+            <MasterDataHeader title="Manage Products" onAdd={handleAdd} />
 
       <ProductsTable
         products={products}

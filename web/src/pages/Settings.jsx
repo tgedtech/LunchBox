@@ -1,22 +1,30 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import MasterDataHeader from '../components/MasterDataHeader';
 
 function Settings() {
   return (
     <div className="p-4 pb-24">
-      <h1 className="text-3xl font-quicksand font-bold text-primary mb-6">Settings</h1>
+      <MasterDataHeader title="Settings" />
 
-      <h2 className="text-xl font-semibold mb-2">Manage Master Data</h2>
-      <ul className="menu bg-base-100 rounded-box p-2 shadow w-80 mb-6">
-        <li><Link to="/settings/products">Manage Products</Link></li>
-        <li><Link to="/settings/categories">Manage Categories</Link></li>
-        <li><Link to="/settings/locations">Manage Locations</Link></li>
-        <li><Link to="/settings/units">Manage Units</Link></li>
-        <li><Link to="/settings/stores">Manage Stores</Link></li>
-      </ul>
+      <div className="space-y-4">
+        <div className="bg-base-100 p-4 rounded-lg shadow">
+          <h2 className="text-lg font-bold mb-2">Master Data</h2>
+          <div className="flex flex-col space-y-2">
+            <Link to="/settings/products" className="link link-primary">Manage Products</Link>
+            <Link to="/settings/categories" className="link link-primary">Manage Categories</Link>
+            <Link to="/settings/locations" className="link link-primary">Manage Locations</Link>
+            <Link to="/settings/units" className="link link-primary">Manage Units</Link>
+            <Link to="/settings/stores" className="link link-primary">Manage Stores</Link>
+          </div>
+        </div>
 
-      <h2 className="text-xl font-semibold mb-2">Other Settings (Coming Soon)</h2>
-      <div className="text-gray-500">User Settings, Preferences, etc.</div>
+        {/* Placeholder for future settings sections */}
+        <div className="bg-base-100 p-4 rounded-lg shadow">
+          <h2 className="text-lg font-bold mb-2">User Settings</h2>
+          <p className="text-sm text-gray-500">Coming soon...</p>
+        </div>
+      </div>
     </div>
   );
 }
