@@ -79,6 +79,7 @@ function ManageProducts() {
         categories={categories}
         locations={locations}
         units={units}
+        existingItems={products} // 🔥 required for the duplicate check
       />
     </div>
   );
