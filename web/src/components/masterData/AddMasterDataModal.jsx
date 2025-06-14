@@ -1,19 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import axios from '../../utils/axiosInstance';
+import CreatableSelect from 'react-select/creatable';
 
 /**
- * Generic modal for adding master data (Products, Categories, Locations, Units, Stores)
- * Handles real-time, case-insensitive duplicate validation.
- *
- * Props:
- *   isOpen        (bool): Controls modal visibility
- *   onClose       (func): Called to close modal
- *   onSuccess     (func): Called after successful save
- *   type          (string): Entity type ("Product", "Category", etc.)
- *   categories    (array): [Products only] List of categories for dropdown
- *   locations     (array): [Products only] List of locations for dropdown
- *   units         (array): [Products only] List of units for dropdown
- *   existingItems (array): List of already-existing entities to check for duplicates
+ * AddMasterDataModal
+ * Generic modal for adding Products, Categories, Locations, Units, or Stores
+ * Supports inline creation of categories, locations, and units via CreatableSelect.
  */
 function AddMasterDataModal({
   isOpen,
@@ -23,19 +15,19 @@ function AddMasterDataModal({
   categories = [],
   locations = [],
   units = [],
-  existingItems = []
+  existingItems = [],
 }) {
-  // --- State for form fields ---
+  // ----- Form State -----
   const [name, setName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
 
-  // --- State for validation and API errors ---
+  // ----- Error/Validation State -----
   const [nameError, setNameError] = useState('');
   const [apiError, setApiError] = useState('');
 
-  // --- Reset state every time modal opens ---
+  // ----- Reset form when modal opens -----
   useEffect(() => {
     if (isOpen) {
       setName('');
@@ -47,10 +39,7 @@ function AddMasterDataModal({
     }
   }, [isOpen]);
 
-  /**
-   * Real-time, case-insensitive, trimmed duplicate check
-   * Blocks duplicate "name" for this master data type.
-   */
+  // ----- Case-insensitive local duplicate validation -----
   const handleNameChange = (e) => {
     const val = e.target.value;
     setName(val);
@@ -66,65 +55,19 @@ function AddMasterDataModal({
     }
   };
 
-  /**
-   * Determine correct API endpoint for this entity type
-   */
+  // ----- Dynamic endpoint based on type -----
   const getEndpoint = () => {
     switch (type) {
-      case 'Product':   return '/products';
-      case 'Category':  return '/categories';
-      case 'Location':  return '/locations';
-      case 'Unit':      return '/units';
-      case 'Store':     return '/stores';
-      default:          return '';
+      case 'Product': return '/products';
+      case 'Category': return '/categories';
+      case 'Location': return '/locations';
+      case 'Unit': return '/units';
+      case 'Store': return '/stores';
+      default: return '';
     }
   };
 
-  /**
-   * Save handler:
-   * - Validates locally (no empty, no duplicate)
-   * - Sends to correct endpoint
-   * - Passes through additional fields for Product only
-   * - Handles all API and validation errors
-   */
-  const handleSave = async () => {
-    setApiError('');
-
-    if (!name.trim()) {
-      setNameError(`${type} name is required`);
-      return;
-    }
-    if (nameError) return;
-
-    try {
-      const payload = { name: name.trim() };
-
-      // Product requires extra fields
-      if (type === 'Product') {
-        payload.categoryId = selectedCategory?.value || null;
-        payload.defaultLocationId = selectedLocation?.value || null;
-        payload.defaultUnitId = selectedUnit?.value || null;
-      }
-
-      await axios.post(getEndpoint(), payload);
-
-      onSuccess && onSuccess();
-      onClose();
-    } catch (err) {
-      console.error(`Error adding ${type}:`, err);
-      // Surface duplicate error if API failed anyway
-      if (
-        err?.response?.data?.code === 'P2002' ||
-        err?.response?.data?.message?.toLowerCase().includes('unique constraint')
-      ) {
-        setNameError(`A ${type.toLowerCase()} with this name already exists.`);
-      } else {
-        setApiError(`Failed to add ${type}`);
-      }
-    }
-  };
-
-  // --- Styling for select controls (if used for Product) ---
+  // ----- DaisyUI-aligned custom select style -----
   const selectStyle = {
     control: (provided, state) => ({
       ...provided,
@@ -167,8 +110,77 @@ function AddMasterDataModal({
     }),
   };
 
+  /**
+   * Save handler:
+   * - For Products, supports on-the-fly creation of category/location/unit
+   * - Runs case-insensitive duplicate validation before POST
+   * - Posts the final product/category/location/unit/store to the API
+   */
+  const handleSave = async () => {
+    setApiError('');
+
+    if (!name.trim()) {
+      setNameError(`${type} name is required`);
+      return;
+    }
+    if (nameError) return;
+
+    try {
+      const payload = { name: name.trim() };
+
+      // ---- Special handling for Product only ----
+      if (type === 'Product') {
+        // 1. CREATE category/location/unit on the fly if needed (CreatableSelect)
+        // Category
+        let catId = selectedCategory?.value || null;
+        if (selectedCategory?.__isNew__ && selectedCategory.label) {
+          const res = await axios.post('/categories', { name: selectedCategory.label.trim() });
+          catId = res.data.id;
+          setSelectedCategory({ value: catId, label: res.data.name });
+        }
+        // Location
+        let locId = selectedLocation?.value || null;
+        if (selectedLocation?.__isNew__ && selectedLocation.label) {
+          const res = await axios.post('/locations', { name: selectedLocation.label.trim() });
+          locId = res.data.id;
+          setSelectedLocation({ value: locId, label: res.data.name });
+        }
+        // Unit
+        let unitId = selectedUnit?.value || null;
+        if (selectedUnit?.__isNew__ && selectedUnit.label) {
+          const res = await axios.post('/units', { name: selectedUnit.label.trim() });
+          unitId = res.data.id;
+          setSelectedUnit({ value: unitId, label: res.data.name });
+        }
+
+        // 2. Attach ids to payload
+        payload.categoryId = catId;
+        payload.defaultLocationId = locId;
+        payload.defaultUnitId = unitId;
+      }
+
+      // ----- POST to backend -----
+      await axios.post(getEndpoint(), payload);
+
+      // ----- Success: refetch parent -----
+      onSuccess && onSuccess();
+      onClose();
+    } catch (err) {
+      console.error(`Error adding ${type}:`, err);
+      if (
+        err?.response?.data?.code === 'P2002' ||
+        err?.response?.data?.message?.toLowerCase().includes('unique constraint')
+      ) {
+        setNameError(`A ${type.toLowerCase()} with this name already exists.`);
+      } else {
+        setApiError(`Failed to add ${type}`);
+      }
+    }
+  };
+
   return (
     <>
+      {/* Modal visibility control (DaisyUI pattern) */}
       <input
         type="checkbox"
         id="add-masterdata-modal"
@@ -178,18 +190,19 @@ function AddMasterDataModal({
       />
       <div className="modal">
         <div className="modal-box rounded-2xl border border-base-300 bg-primary-content shadow-xl">
+          {/* Modal Title */}
           <h2 className="text-xl font-quicksand font-bold text-primary mb-4">
             Add {type}
           </h2>
 
-          {/* API error (not validation) */}
+          {/* API Error (not validation) */}
           {apiError && (
             <div className="alert alert-error mb-4">
               <span>{apiError}</span>
             </div>
           )}
 
-          {/* --- Name field (required for all types) --- */}
+          {/* --- Name field (all types) --- */}
           <div className="mb-4">
             <label className="block text-sm mb-1 font-quicksand font-bold text-primary">
               {type} Name
@@ -209,74 +222,59 @@ function AddMasterDataModal({
             )}
           </div>
 
-          {/* --- Product extras: Category, Location, Unit dropdowns --- */}
+          {/* --- Product Extras: CreatableSelect for Category/Location/Unit --- */}
           {type === 'Product' && (
             <>
+              {/* Category */}
               <div className="mb-4">
                 <label className="block text-sm font-bold mb-1 font-quicksand">
                   Category
                 </label>
-                <select
-                  className="select select-bordered w-full"
-                  value={selectedCategory?.value || ''}
-                  onChange={e => {
-                    const found = categories.find(c => c.id === e.target.value);
-                    setSelectedCategory(
-                      found ? { value: found.id, label: found.name } : null
-                    );
-                  }}
-                >
-                  <option value="">Select category</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <CreatableSelect
+                  styles={selectStyle}
+                  value={selectedCategory}
+                  onChange={setSelectedCategory}
+                  options={categories.map(c => ({ value: c.id, label: c.name }))}
+                  placeholder="Enter or select category"
+                  isClearable
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  formatCreateLabel={inputValue => `Create "${inputValue}"`}
+                />
               </div>
+              {/* Default Location */}
               <div className="mb-4">
                 <label className="block text-sm font-bold mb-1 font-quicksand">
                   Default Location
                 </label>
-                <select
-                  className="select select-bordered w-full"
-                  value={selectedLocation?.value || ''}
-                  onChange={e => {
-                    const found = locations.find(l => l.id === e.target.value);
-                    setSelectedLocation(
-                      found ? { value: found.id, label: found.name } : null
-                    );
-                  }}
-                >
-                  <option value="">Select location</option>
-                  {locations.map(l => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
+                <CreatableSelect
+                  styles={selectStyle}
+                  value={selectedLocation}
+                  onChange={setSelectedLocation}
+                  options={locations.map(l => ({ value: l.id, label: l.name }))}
+                  placeholder="Enter or select location"
+                  isClearable
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  formatCreateLabel={inputValue => `Create "${inputValue}"`}
+                />
               </div>
+              {/* Default Unit */}
               <div className="mb-4">
                 <label className="block text-sm font-bold mb-1 font-quicksand">
                   Default Unit
                 </label>
-                <select
-                  className="select select-bordered w-full"
-                  value={selectedUnit?.value || ''}
-                  onChange={e => {
-                    const found = units.find(u => u.id === e.target.value);
-                    setSelectedUnit(
-                      found ? { value: found.id, label: found.name } : null
-                    );
-                  }}
-                >
-                  <option value="">Select unit</option>
-                  {units.map(u => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
+                <CreatableSelect
+                  styles={selectStyle}
+                  value={selectedUnit}
+                  onChange={setSelectedUnit}
+                  options={units.map(u => ({ value: u.id, label: u.name }))}
+                  placeholder="Enter or select unit"
+                  isClearable
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  formatCreateLabel={inputValue => `Create "${inputValue}"`}
+                />
               </div>
             </>
           )}
