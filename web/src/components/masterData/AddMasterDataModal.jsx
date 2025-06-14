@@ -17,17 +17,14 @@ function AddMasterDataModal({
   units = [],
   existingItems = [],
 }) {
-  // ----- Form State -----
   const [name, setName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
 
-  // ----- Error/Validation State -----
   const [nameError, setNameError] = useState('');
   const [apiError, setApiError] = useState('');
 
-  // ----- Reset form when modal opens -----
   useEffect(() => {
     if (isOpen) {
       setName('');
@@ -39,7 +36,6 @@ function AddMasterDataModal({
     }
   }, [isOpen]);
 
-  // ----- Case-insensitive local duplicate validation -----
   const handleNameChange = (e) => {
     const val = e.target.value;
     setName(val);
@@ -55,7 +51,6 @@ function AddMasterDataModal({
     }
   };
 
-  // ----- Dynamic endpoint based on type -----
   const getEndpoint = () => {
     switch (type) {
       case 'Product': return '/products';
@@ -67,7 +62,6 @@ function AddMasterDataModal({
     }
   };
 
-  // ----- DaisyUI-aligned custom select style -----
   const selectStyle = {
     control: (provided, state) => ({
       ...provided,
@@ -126,26 +120,27 @@ function AddMasterDataModal({
     if (nameError) return;
 
     try {
+      // Compose payload for POST
       const payload = { name: name.trim() };
 
-      // ---- Special handling for Product only ----
       if (type === 'Product') {
-        // 1. CREATE category/location/unit on the fly if needed (CreatableSelect)
-        // Category
+        // --- Resolve category (create if new)
         let catId = selectedCategory?.value || null;
         if (selectedCategory?.__isNew__ && selectedCategory.label) {
           const res = await axios.post('/categories', { name: selectedCategory.label.trim() });
           catId = res.data.id;
           setSelectedCategory({ value: catId, label: res.data.name });
         }
-        // Location
+
+        // --- Resolve location (create if new)
         let locId = selectedLocation?.value || null;
         if (selectedLocation?.__isNew__ && selectedLocation.label) {
           const res = await axios.post('/locations', { name: selectedLocation.label.trim() });
           locId = res.data.id;
           setSelectedLocation({ value: locId, label: res.data.name });
         }
-        // Unit
+
+        // --- Resolve unit (create if new)
         let unitId = selectedUnit?.value || null;
         if (selectedUnit?.__isNew__ && selectedUnit.label) {
           const res = await axios.post('/units', { name: selectedUnit.label.trim() });
@@ -153,23 +148,22 @@ function AddMasterDataModal({
           setSelectedUnit({ value: unitId, label: res.data.name });
         }
 
-        // 2. Attach ids to payload
-        payload.categoryId = catId;
-        payload.defaultLocationId = locId;
-        payload.defaultUnitId = unitId;
+        // Assign correct field names for schema:
+        payload.categoryId = catId || null;
+        payload.defaultLocationId = locId || null;
+        payload.defaultUnitTypeId = unitId || null;
       }
 
-      // ----- POST to backend -----
+      // POST to appropriate endpoint
       await axios.post(getEndpoint(), payload);
 
-      // ----- Success: refetch parent -----
       onSuccess && onSuccess();
       onClose();
     } catch (err) {
       console.error(`Error adding ${type}:`, err);
       if (
         err?.response?.data?.code === 'P2002' ||
-        err?.response?.data?.message?.toLowerCase().includes('unique constraint')
+        (err?.response?.data?.message?.toLowerCase?.() || '').includes('unique constraint')
       ) {
         setNameError(`A ${type.toLowerCase()} with this name already exists.`);
       } else {
