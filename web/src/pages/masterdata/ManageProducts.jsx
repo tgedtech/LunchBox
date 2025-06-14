@@ -1,71 +1,85 @@
-import React, { useEffect, useState } from 'react';
-import ProductsTable from '../../components/masterdata/ProductsTable';
-import axios from '../../utils/axiosInstance';
-import useAuth from '../../hooks/useAuth';
+// src/pages/ManageProducts.jsx
+import React, { useState, useEffect } from 'react';
 import MasterDataHeader from '../../components/MasterDataHeader';
+import ProductsTable from '../../components/masterdata/ProductsTable';
+import AddMasterDataModal from '../../components/masterdata/AddMasterDataModal';
+import axios from '../../utils/axiosInstance';
 
 function ManageProducts() {
-  const { token } = useAuth();
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [units, setUnits] = useState([]);
+
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchProducts = async () => {
     try {
-      const res = await axios.get('/products', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      // Map category name (your table expects category string)
-      const mappedProducts = res.data.map((product) => ({
-        ...product,
-        category: product.category ? product.category.name : 'None',
-        location: '-', // Your table expects this, but product model does not have default location yet
-        unit: product.defaultUnit || '-',
-      }));
-      setProducts(mappedProducts);
+      const res = await axios.get('/products');
+      setProducts(res.data);
     } catch (err) {
       console.error('Error fetching products:', err);
-      setError('Failed to load products');
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchMasterData = async () => {
+    try {
+      const [categoriesRes, locationsRes, unitsRes] = await Promise.all([
+        axios.get('/categories'),
+        axios.get('/locations'),
+        axios.get('/units'),
+      ]);
+
+      setCategories(categoriesRes.data);
+      setLocations(locationsRes.data);
+      setUnits(unitsRes.data);
+    } catch (err) {
+      console.error('Error fetching master data:', err);
     }
   };
 
   useEffect(() => {
     fetchProducts();
+    fetchMasterData();
   }, []);
+
+  const handleAddClick = () => {
+    setShowAddModal(true);
+  };
+
+  const handleModalClose = () => {
+    setShowAddModal(false);
+  };
+
+  const handleModalSuccess = () => {
+    fetchProducts();
+    fetchMasterData(); // So dropdowns stay fresh!
+    setShowAddModal(false);
+  };
 
   const handleEdit = (product) => {
     console.log('Edit product:', product);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      try {
-        await axios.delete(`/products/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        fetchProducts();
-      } catch (err) {
-        console.error('Error deleting product:', err);
-      }
-    }
+  const handleDelete = (id) => {
+    console.log('Delete product with id:', id);
   };
 
   return (
     <div className="p-4 pb-24">
-      <MasterDataHeader title="Manage Products" />
-      {loading ? (
-        <p>Loading products...</p>
-      ) : error ? (
-        <p className="text-error">{error}</p>
-      ) : (
-        <ProductsTable
-          products={products}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-      )}
+      <MasterDataHeader title="Manage Products" onAdd={handleAddClick} />
+
+      <ProductsTable products={products} onEdit={handleEdit} onDelete={handleDelete} />
+
+      <AddMasterDataModal
+        isOpen={showAddModal}
+        onClose={handleModalClose}
+        onSuccess={handleModalSuccess}
+        type="Product"
+        categories={categories}
+        locations={locations}
+        units={units}
+      />
     </div>
   );
 }

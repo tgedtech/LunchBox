@@ -24,9 +24,9 @@ function ProductsTable({ products, onEdit, onDelete }) {
             products.map((product) => (
               <tr key={product.id}>
                 <td>{product.name}</td>
-                <td>{product.category}</td>
-                <td>{product.location}</td>
-                <td>{product.unit}</td>
+                <td>{product.category?.name || '-'}</td>
+                <td>{product.location?.name || '-'}</td>
+                <td>{product.unit?.name || '-'}</td>
                 <td className="flex space-x-2">
                   <button
                     className="btn btn-xs btn-primary"
