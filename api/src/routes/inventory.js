@@ -12,7 +12,7 @@ router.get('/', authMiddleware, async (req, res) => {
       include: {
         product: {
           include: {
-            category: true, // THIS is what makes product.category available!
+            category: true,
           },
         },
         location: true,
@@ -32,18 +32,51 @@ router.post('/', authMiddleware, async (req, res) => {
   const { productId, locationId, quantity, unit, expiration, opened } = req.body;
 
   try {
-    const item = await prisma.inventoryItem.create({
-      data: {
+    // Find if an item with the same product/location/unit/user exists
+    const existing = await prisma.inventoryItem.findFirst({
+      where: {
+        userId: req.userId,
         productId,
         locationId,
-        quantity,
         unit,
-        expiration: expiration ? new Date(expiration) : null,
-        opened: opened || false,
-        userId: req.userId,
       },
     });
-    res.status(201).json(item);
+
+    if (existing) {
+      // Merge: sum quantities, keep earliest expiration, leave "opened" as existing
+      const newQuantity = Number(existing.quantity) + Number(quantity);
+
+      let newExpiration = existing.expiration;
+      if (expiration) {
+        const newExpDate = new Date(expiration);
+        if (!newExpiration || (newExpDate < newExpiration)) {
+          newExpiration = newExpDate;
+        }
+      }
+
+      const updated = await prisma.inventoryItem.update({
+        where: { id: existing.id },
+        data: {
+          quantity: newQuantity,
+          expiration: newExpiration,
+        },
+      });
+      return res.status(200).json(updated);
+    } else {
+      // No match, create new row
+      const item = await prisma.inventoryItem.create({
+        data: {
+          productId,
+          locationId,
+          quantity,
+          unit,
+          expiration: expiration ? new Date(expiration) : null,
+          opened: opened || false,
+          userId: req.userId,
+        },
+      });
+      return res.status(201).json(item);
+    }
   } catch (err) {
     console.error('Error creating inventory item:', err);
     res.status(500).json({ error: 'Failed to create inventory item' });

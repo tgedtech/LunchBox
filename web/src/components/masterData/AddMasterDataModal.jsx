@@ -2,11 +2,14 @@ import React, { useEffect, useState } from 'react';
 import axios from '../../utils/axiosInstance';
 import CreatableSelect from 'react-select/creatable';
 
-/**
- * AddMasterDataModal
- * Generic modal for adding Products, Categories, Locations, Units, or Stores
- * Supports inline creation of categories, locations, and units via CreatableSelect.
- */
+// Utility: normalize select value
+function getOptionByValue(val, arr) {
+  if (!val) return null;
+  if (typeof val === 'object' && val.value) return val;
+  const found = arr.find(a => a.id === val || a.name === val);
+  return found ? { value: found.id, label: found.name } : null;
+}
+
 function AddMasterDataModal({
   isOpen,
   onClose,
@@ -63,6 +66,7 @@ function AddMasterDataModal({
   };
 
   const selectStyle = {
+    // (same as before)
     control: (provided, state) => ({
       ...provided,
       backgroundColor: '#f9fafb',
@@ -104,12 +108,14 @@ function AddMasterDataModal({
     }),
   };
 
-  /**
-   * Save handler:
-   * - For Products, supports on-the-fly creation of category/location/unit
-   * - Runs case-insensitive duplicate validation before POST
-   * - Posts the final product/category/location/unit/store to the API
-   */
+  // Always resolve to ID for POSTs
+  function getIdFromSelect(val, arr) {
+    if (!val) return null;
+    if (typeof val === 'object' && val.value) return val.value;
+    const found = arr.find((item) => item.name === val || item.id === val);
+    return found ? found.id : null;
+  }
+
   const handleSave = async () => {
     setApiError('');
 
@@ -120,41 +126,35 @@ function AddMasterDataModal({
     if (nameError) return;
 
     try {
-      // Compose payload for POST
       const payload = { name: name.trim() };
 
       if (type === 'Product') {
-        // --- Resolve category (create if new)
-        let catId = selectedCategory?.value || null;
+        let catId = getIdFromSelect(selectedCategory, categories);
         if (selectedCategory?.__isNew__ && selectedCategory.label) {
           const res = await axios.post('/categories', { name: selectedCategory.label.trim() });
           catId = res.data.id;
           setSelectedCategory({ value: catId, label: res.data.name });
         }
 
-        // --- Resolve location (create if new)
-        let locId = selectedLocation?.value || null;
+        let locId = getIdFromSelect(selectedLocation, locations);
         if (selectedLocation?.__isNew__ && selectedLocation.label) {
           const res = await axios.post('/locations', { name: selectedLocation.label.trim() });
           locId = res.data.id;
           setSelectedLocation({ value: locId, label: res.data.name });
         }
 
-        // --- Resolve unit (create if new)
-        let unitId = selectedUnit?.value || null;
+        let unitId = getIdFromSelect(selectedUnit, units);
         if (selectedUnit?.__isNew__ && selectedUnit.label) {
           const res = await axios.post('/units', { name: selectedUnit.label.trim() });
           unitId = res.data.id;
           setSelectedUnit({ value: unitId, label: res.data.name });
         }
 
-        // Assign correct field names for schema:
         payload.categoryId = catId || null;
         payload.defaultLocationId = locId || null;
         payload.defaultUnitTypeId = unitId || null;
       }
 
-      // POST to appropriate endpoint
       await axios.post(getEndpoint(), payload);
 
       onSuccess && onSuccess();
@@ -174,7 +174,6 @@ function AddMasterDataModal({
 
   return (
     <>
-      {/* Modal visibility control (DaisyUI pattern) */}
       <input
         type="checkbox"
         id="add-masterdata-modal"
@@ -184,19 +183,14 @@ function AddMasterDataModal({
       />
       <div className="modal">
         <div className="modal-box rounded-2xl border border-base-300 bg-primary-content shadow-xl">
-          {/* Modal Title */}
           <h2 className="text-xl font-quicksand font-bold text-primary mb-4">
             Add {type}
           </h2>
-
-          {/* API Error (not validation) */}
           {apiError && (
             <div className="alert alert-error mb-4">
               <span>{apiError}</span>
             </div>
           )}
-
-          {/* --- Name field (all types) --- */}
           <div className="mb-4">
             <label className="block text-sm mb-1 font-quicksand font-bold text-primary">
               {type} Name
@@ -215,11 +209,8 @@ function AddMasterDataModal({
               </p>
             )}
           </div>
-
-          {/* --- Product Extras: CreatableSelect for Category/Location/Unit --- */}
           {type === 'Product' && (
             <>
-              {/* Category */}
               <div className="mb-4">
                 <label className="block text-sm font-bold mb-1 font-quicksand">
                   Category
@@ -227,7 +218,7 @@ function AddMasterDataModal({
                 <CreatableSelect
                   styles={selectStyle}
                   value={selectedCategory}
-                  onChange={setSelectedCategory}
+                  onChange={v => setSelectedCategory(getOptionByValue(v, categories))}
                   options={categories.map(c => ({ value: c.id, label: c.name }))}
                   placeholder="Enter or select category"
                   isClearable
@@ -236,7 +227,6 @@ function AddMasterDataModal({
                   formatCreateLabel={inputValue => `Create "${inputValue}"`}
                 />
               </div>
-              {/* Default Location */}
               <div className="mb-4">
                 <label className="block text-sm font-bold mb-1 font-quicksand">
                   Default Location
@@ -244,7 +234,7 @@ function AddMasterDataModal({
                 <CreatableSelect
                   styles={selectStyle}
                   value={selectedLocation}
-                  onChange={setSelectedLocation}
+                  onChange={v => setSelectedLocation(getOptionByValue(v, locations))}
                   options={locations.map(l => ({ value: l.id, label: l.name }))}
                   placeholder="Enter or select location"
                   isClearable
@@ -253,7 +243,6 @@ function AddMasterDataModal({
                   formatCreateLabel={inputValue => `Create "${inputValue}"`}
                 />
               </div>
-              {/* Default Unit */}
               <div className="mb-4">
                 <label className="block text-sm font-bold mb-1 font-quicksand">
                   Default Unit
@@ -261,7 +250,7 @@ function AddMasterDataModal({
                 <CreatableSelect
                   styles={selectStyle}
                   value={selectedUnit}
-                  onChange={setSelectedUnit}
+                  onChange={v => setSelectedUnit(getOptionByValue(v, units))}
                   options={units.map(u => ({ value: u.id, label: u.name }))}
                   placeholder="Enter or select unit"
                   isClearable
@@ -272,8 +261,6 @@ function AddMasterDataModal({
               </div>
             </>
           )}
-
-          {/* --- Action buttons --- */}
           <div className="flex justify-end space-x-2 mt-6 font-nunito-sans">
             <button className="btn btn-outline btn-error" onClick={onClose}>
               Cancel

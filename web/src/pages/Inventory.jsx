@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import ConsumeIcon from '../assets/icons/inventory.consume1.svg?react';
+import ConsumeIcon from '../assets/icons/minus.rectangle.svg?react';
 import ConsumeAllIcon from '../assets/icons/inventory.consumeall.svg?react';
+import AddtoShoppingList from '../assets/icons/cart 1.svg?react';
 import OpenIcon from '../assets/icons/inventory.open1.svg?react';
 import InventoryHeader from '../components/InventoryHeader';
 import AddItemModal from '../components/inventory/AddItemModal';
@@ -139,7 +140,7 @@ function Inventory() {
       />
 
       {/* Inventory Table */}
-      <div className="overflow-x-auto rounded-lg shadow bg-base-100">
+      <div className="overflow-x-auto rounded-lg shadow bg-base-100 font-nunito-sans">
         <table className="table table-zebra w-full">
           <thead>
             <tr>
@@ -148,7 +149,7 @@ function Inventory() {
               <th>Quantity</th>
               <th>Location</th>
               <th>Category</th>
-              <th>Expiration</th>
+              <th>Soonest Expiration</th>
             </tr>
           </thead>
           <tbody>
@@ -156,22 +157,16 @@ function Inventory() {
               <tr key={item.id}>
                 <td className="flex space-x-2">
                   <button
-                    className="btn btn-xs btn-primary"
+                    className="btn btn-xs btn-error"
                     onClick={() => console.log(`Consume 1 of ${item.product.name}`)}
                   >
                     <ConsumeIcon className="w-4 h-4" />
                   </button>
                   <button
-                    className="btn btn-xs btn-error"
+                    className="btn btn-xs btn-accent"
                     onClick={() => console.log(`Consume ALL of ${item.product.name}`)}
                   >
-                    <ConsumeAllIcon className="w-4 h-4" />
-                  </button>
-                  <button
-                    className="btn btn-xs btn-secondary"
-                    onClick={() => console.log(`Open 1 of ${item.product.name}`)}
-                  >
-                    <OpenIcon className="w-4 h-4" />
+                    <AddtoShoppingList className="w-4 h-4" />
                   </button>
                 </td>
                 <td>

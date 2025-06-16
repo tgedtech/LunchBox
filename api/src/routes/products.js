@@ -5,7 +5,6 @@ import authMiddleware from '../middleware/auth.js';
 const prisma = new PrismaClient();
 const router = express.Router();
 
-// GET all products (with category, default location, default unit type)
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const products = await prisma.product.findMany({
@@ -23,7 +22,6 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// POST create new product (handling relations)
 router.post('/', authMiddleware, async (req, res) => {
   const {
     name,
@@ -35,17 +33,32 @@ router.post('/', authMiddleware, async (req, res) => {
     defaultUnitTypeId,
   } = req.body;
 
+  // === DEBUG LOGGING: Output payload and IDs for troubleshooting ===
+  console.log('--- PRODUCT CREATE PAYLOAD ---');
+  console.log({
+    name,
+    description,
+    defaultQuantity,
+    defaultUnit,
+    categoryId,
+    defaultLocationId,
+    defaultUnitTypeId,
+  });
+
   try {
     const data = {
       name,
       description,
       defaultQuantity,
       defaultUnit,
-      // Relations: Only connect if the ID is present and non-empty
       ...(categoryId && { category: { connect: { id: categoryId } } }),
       ...(defaultLocationId && { defaultLocation: { connect: { id: defaultLocationId } } }),
       ...(defaultUnitTypeId && { defaultUnitType: { connect: { id: defaultUnitTypeId } } }),
     };
+
+    // Log final Prisma data object for additional verification
+    console.log('--- PRISMA PRODUCT CREATE DATA ---');
+    console.log(data);
 
     const product = await prisma.product.create({
       data,
@@ -57,12 +70,13 @@ router.post('/', authMiddleware, async (req, res) => {
     });
     res.status(201).json(product);
   } catch (err) {
+    // Enhanced error logging for debugging
     console.error('Error creating product:', err);
+    if (err.meta) console.error('Prisma error meta:', err.meta);
     res.status(500).json({ error: 'Failed to create product' });
   }
 });
 
-// PUT update product (handling relations)
 router.put('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const {
@@ -81,7 +95,6 @@ router.put('/:id', authMiddleware, async (req, res) => {
       description,
       defaultQuantity,
       defaultUnit,
-      // Relations: connect if value present, set to null if explicitly null/empty
       category: categoryId
         ? { connect: { id: categoryId } }
         : { disconnect: true },
@@ -109,7 +122,6 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE product
 router.delete('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
 
