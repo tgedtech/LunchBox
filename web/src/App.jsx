@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
+import ExpiredInventoryPage from './pages/ExpiredReport.jsx';
 import Inventory from './pages/Inventory';
 import ShoppingList from './pages/ShoppingList';
 import Recipes from './pages/Recipes';
@@ -26,7 +26,7 @@ function App() {
                 path="/"
                 element={
                   <ProtectedRoute>
-                    <Home />
+                    <ExpiredInventoryPage />
                   </ProtectedRoute>
                 }
               />

@@ -1,9 +1,9 @@
 import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import HomeIcon from '../assets/icons/home.svg?react';
 import RecipesIcon from '../assets/icons/books.vertical 1.svg?react';
 import InventoryIcon from '../assets/icons/shippingbox 1.svg?react';
 import ShoppingListIcon from '../assets/icons/cart 1.svg?react';
+import ExpiredIcon from '../assets/icons/expired.svg?react';
 import SettingsIcon from '../assets/icons/settings.svg?react';
 import useAuth from '../hooks/useAuth';
 
@@ -25,11 +25,7 @@ const FloatingDock = () => {
         borderColor: 'var(--glass-border-light)',
       }}
     >
-      <NavLink to="/" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
-        <HomeIcon className="w-6 h-6 mb-1" />
-        <span className="text-xs">Home</span>
-      </NavLink>
-      <NavLink to="/recipes" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
+            <NavLink to="/recipes" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
         <RecipesIcon className="w-6 h-6 mb-1" />
         <span className="text-xs">Recipes</span>
       </NavLink>
@@ -37,9 +33,14 @@ const FloatingDock = () => {
         <InventoryIcon className="w-6 h-6 mb-1" />
         <span className="text-xs">Inventory</span>
       </NavLink>
+      {/* I don't want this NavLink (Expired Report) to be visible unless the report has actual data in it */}
+      <NavLink to="/" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
+        <ExpiredIcon className="w-6 h-6 mb-1" />
+        <span className="text-xs">Expired Items</span>
+      </NavLink>
       <NavLink to="/shopping-list" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
         <ShoppingListIcon className="w-6 h-6 mb-1" />
-        <span className="text-xs">Shop</span>
+        <span className="text-xs">Shopping List</span>
       </NavLink>
       <NavLink to="/settings" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
         <SettingsIcon className="w-6 h-6 mb-1" />
