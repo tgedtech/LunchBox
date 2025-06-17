@@ -12,6 +12,7 @@ import ManageStores from './pages/masterdata/ManageStores';
 import FloatingDock from './components/FloatingDock.jsx';
 import { AuthProvider } from './context/AuthProvider';
 import Login from './pages/Login';
+import Register from './pages/Register'; // ADD THIS LINE
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
           <main className="p-4">
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />  {/* <-- ADD THIS ROUTE */}
               <Route
                 path="/"
                 element={

@@ -5,22 +5,48 @@ import authMiddleware from '../middleware/auth.js';
 const prisma = new PrismaClient();
 const router = express.Router();
 
+function parseBool(val) {
+  if (typeof val === 'string') return val === 'true';
+  return !!val;
+}
+
 router.get('/', authMiddleware, async (req, res) => {
   try {
+    const { expired, expiringSoon } = req.query;
+    const now = new Date();
+    let where = { userId: req.userId };
+
+    if (parseBool(expired)) {
+      // Only expired items: expiration exists and expiration < now
+      where = {
+        ...where,
+        expiration: { lt: now },
+      };
+    } else if (parseBool(expiringSoon)) {
+      // Only expiring soon: expiration exists and now <= expiration <= now + 7 days
+      const soon = new Date();
+      soon.setDate(soon.getDate() + 7);
+      where = {
+        ...where,
+        expiration: { gte: now, lte: soon },
+      };
+    }
+
     const items = await prisma.inventoryItem.findMany({
-      where: { userId: req.userId },
+      where,
       include: {
         product: {
           include: {
             category: true,
+            defaultLocation: true,
+            defaultUnitType: true,
           },
         },
         location: true,
       },
-      orderBy: {
-        updatedAt: 'desc',
-      },
+      orderBy: { updatedAt: 'desc' },
     });
+
     res.json(items);
   } catch (err) {
     console.error('Error fetching inventory:', err);
@@ -28,11 +54,13 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
+// The rest of your CRUD handlers remain unchanged (post/put/delete)...
+// ... [NO CHANGE BELOW THIS LINE]
+
 router.post('/', authMiddleware, async (req, res) => {
   const { productId, locationId, quantity, unit, expiration, opened } = req.body;
 
   try {
-    // Find if an item with the same product/location/unit/user exists
     const existing = await prisma.inventoryItem.findFirst({
       where: {
         userId: req.userId,
@@ -43,13 +71,11 @@ router.post('/', authMiddleware, async (req, res) => {
     });
 
     if (existing) {
-      // Merge: sum quantities, keep earliest expiration, leave "opened" as existing
       const newQuantity = Number(existing.quantity) + Number(quantity);
-
       let newExpiration = existing.expiration;
       if (expiration) {
         const newExpDate = new Date(expiration);
-        if (!newExpiration || (newExpDate < newExpiration)) {
+        if (!newExpiration || newExpDate < newExpiration) {
           newExpiration = newExpDate;
         }
       }
@@ -63,7 +89,6 @@ router.post('/', authMiddleware, async (req, res) => {
       });
       return res.status(200).json(updated);
     } else {
-      // No match, create new row
       const item = await prisma.inventoryItem.create({
         data: {
           productId,

@@ -49,6 +49,10 @@ function Login() {
             Log In
           </button>
         </form>
+        <div className="mt-4 text-sm text-center">
+          Don&apos;t have an account?{' '}
+          <a href="/register" className="link link-primary">Register here</a>
+        </div>
       </div>
     </div>
   );

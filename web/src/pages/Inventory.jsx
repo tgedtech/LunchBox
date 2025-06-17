@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import ConsumeIcon from '../assets/icons/minus.rectangle.svg?react';
-import ConsumeAllIcon from '../assets/icons/inventory.consumeall.svg?react';
-import AddtoShoppingList from '../assets/icons/cart 1.svg?react';
 import OpenIcon from '../assets/icons/inventory.open1.svg?react';
+import RemoveIcon from '../assets/icons/minus.rectangle.svg?react';
+import CartIcon from '../assets/icons/cart 1.svg?react';
 import InventoryHeader from '../components/InventoryHeader';
 import AddItemModal from '../components/inventory/AddItemModal';
+import ActionModal from '../components/inventory/ActionModal';
 import axios from '../utils/axiosInstance';
+
+const CATEGORY_LABELS = {
+  1: "Consumed when opened",
+  2: "Long lasting after open",
+  3: "Goes bad after open"
+};
 
 function Inventory() {
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -25,6 +31,16 @@ function Inventory() {
 
   const [showModal, setShowModal] = useState(false);
 
+  // Always initialize modal state as CLOSED (open: false)
+  const [actionModal, setActionModal] = useState({
+    open: false,
+    actionType: null,
+    item: null,
+    maxQuantity: 1,
+    isExpired: false,
+    askAddToList: false,
+  });
+
   const fetchInventory = async () => {
     try {
       const res = await axios.get('/inventory');
@@ -43,12 +59,11 @@ function Inventory() {
         axios.get('/stores'),
         axios.get('/units'),
       ]);
-
       setProducts(productsRes.data);
-      setCategories(categoriesRes.data.map((c) => c.name));
-      setLocations(locationsRes.data.map((l) => l.name));
-      setStores(storesRes.data.map((s) => s.name));
-      setUnits(unitsRes.data.map((u) => u.name));
+      setCategories(categoriesRes.data);
+      setLocations(locationsRes.data);
+      setStores(storesRes.data);
+      setUnits(unitsRes.data);
     } catch (err) {
       console.error('Error fetching master data:', err);
     }
@@ -59,36 +74,42 @@ function Inventory() {
     fetchMasterData();
   }, []);
 
-  const handleAddClick = () => {
-    setShowModal(true);
+  // Only opens modal in response to user click
+  const openActionModal = (type, item, options = {}) => {
+    setActionModal({
+      open: true,
+      actionType: type,
+      item,
+      maxQuantity: item.quantity,
+      isExpired: !!options.isExpired,
+      askAddToList: !!options.askAddToList,
+    });
   };
 
-  const handleModalClose = () => {
-    setShowModal(false);
-  };
-
-  const handleModalSuccess = () => {
-    fetchInventory();
-    setShowModal(false);
-  };
+  // Always fully reset modal state
+  const closeActionModal = () =>
+    setActionModal({
+      open: false,
+      actionType: null,
+      item: null,
+      maxQuantity: 1,
+      isExpired: false,
+      askAddToList: false,
+    });
 
   const filterInventory = (items) => {
     return items
       .filter((item) => {
-        // Search
         const matchesSearch = item.product?.name
           .toLowerCase()
           .includes(filters.search.toLowerCase());
 
-        // Location
         const matchesLocation =
           !filters.location || item.location?.name === filters.location;
 
-        // Category
         const matchesCategory =
           !filters.category || item.product?.category?.name === filters.category;
 
-        // Expiration
         const now = new Date();
         const expDate = item.expiration ? new Date(item.expiration) : null;
 
@@ -126,15 +147,84 @@ function Inventory() {
       });
   };
 
+  const handleActionConfirm = async ({ quantity, addToList }) => {
+    const { actionType, item, isExpired } = actionModal;
+
+    if (actionType === 'open') {
+      console.log(`Open/use ${quantity} of`, item.product?.name);
+    } else if (actionType === 'remove') {
+      if (isExpired) {
+        if (addToList) {
+          console.log('Add to shopping list:', item.product?.name);
+        }
+        console.log('Remove expired item:', item.product?.name);
+      } else {
+        console.log('Remove/consume:', quantity, item.product?.name);
+      }
+    } else if (actionType === 'addToList') {
+      console.log('Add to shopping list:', item.product?.name);
+    }
+    closeActionModal();
+    fetchInventory();
+  };
+
+  const renderActions = (item) => {
+    const categoryType = item.product?.inventoryBehavior || 1;
+
+    if (!item.opened) {
+      return (
+        <div className="flex space-x-2">
+          <button
+            className="btn btn-xs btn-primary tooltip"
+            data-tip="Open/Use"
+            onClick={() => openActionModal('open', item)}
+          >
+            <OpenIcon className="w-4 h-4" />
+          </button>
+          <button
+            className="btn btn-xs btn-accent tooltip"
+            data-tip="Add to Shopping List"
+            onClick={() => openActionModal('addToList', item)}
+          >
+            <CartIcon className="w-4 h-4" />
+          </button>
+        </div>
+      );
+    }
+
+    if (categoryType === 2 || categoryType === 3) {
+      return (
+        <div className="flex space-x-2">
+          <button
+            className="btn btn-xs btn-error tooltip"
+            data-tip="Remove from Inventory"
+            onClick={() => openActionModal('remove', item)}
+          >
+            <RemoveIcon className="w-4 h-4" />
+          </button>
+          <button
+            className="btn btn-xs btn-accent tooltip"
+            data-tip="Add to Shopping List"
+            onClick={() => openActionModal('addToList', item)}
+          >
+            <CartIcon className="w-4 h-4" />
+          </button>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="p-4 pb-24">
       <InventoryHeader
-        onAdd={handleAddClick}
+        onAdd={() => setShowModal(true)}
         itemCount={inventoryItems.length}
         filters={filters}
         setFilters={setFilters}
-        locations={locations}
-        categories={categories}
+        locations={locations.map(l => l.name)}
+        categories={categories.map(c => c.name)}
         expirations={['Expired', 'Expiring Soon', 'Valid']}
         sortOptions={['Name', 'Quantity', 'Expiration']}
       />
@@ -149,57 +239,53 @@ function Inventory() {
               <th>Quantity</th>
               <th>Location</th>
               <th>Category</th>
-              <th>Soonest Expiration</th>
+              <th>Expiration</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {filterInventory(inventoryItems).map((item) => (
-              <tr key={item.id}>
-                <td className="flex space-x-2">
-                  <button
-                    className="btn btn-xs btn-error"
-                    onClick={() => console.log(`Consume 1 of ${item.product.name}`)}
-                  >
-                    <ConsumeIcon className="w-4 h-4" />
-                  </button>
-                  <button
-                    className="btn btn-xs btn-accent"
-                    onClick={() => console.log(`Consume ALL of ${item.product.name}`)}
-                  >
-                    <AddtoShoppingList className="w-4 h-4" />
-                  </button>
-                </td>
-                <td>
-                  <a
-                    href="#"
-                    className="link link-primary"
-                    onClick={() => console.log(`Edit ${item.product.name}`)}
-                  >
-                    {item.product?.name}
-                  </a>
-                </td>
-                <td>
-                  {item.quantity} {item.unit}
-                </td>
-                <td>{item.location?.name}</td>
-                <td>{item.product?.category?.name || 'Uncategorized'}</td>
-                <td>
-                  {item.expiration ? (
-                    <span
-                      className={`${
-                        new Date(item.expiration) < new Date()
-                          ? 'text-error font-bold'
-                          : 'text-base-content'
-                      }`}
-                    >
-                      {new Date(item.expiration).toLocaleDateString()}
-                    </span>
-                  ) : (
-                    <span className="text-gray-500">None</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {filterInventory(inventoryItems).map((item) => {
+              const isExpiring =
+                item.expiration && new Date(item.expiration) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) &&
+                new Date(item.expiration) > new Date();
+              const isExpired = item.expiration && new Date(item.expiration) < new Date();
+
+              let quantityCell = `${item.quantity} ${item.unit}`;
+              if (item.opened && (item.product?.inventoryBehavior === 2 || item.product?.inventoryBehavior === 3)) {
+                quantityCell += ` | ${item.opened} open`;
+              }
+
+              return (
+                <tr
+                  key={item.id}
+                  className={
+                    isExpired
+                      ? "bg-error/20 text-error"
+                      : isExpiring
+                      ? "bg-warning/20 text-warning"
+                      : ""
+                  }
+                >
+                  <td>{renderActions(item)}</td>
+                  <td>{item.product?.name}</td>
+                  <td>{quantityCell}</td>
+                  <td>{item.location?.name}</td>
+                  <td>{item.product?.category?.name || 'Uncategorized'}</td>
+                  <td>
+                    {item.expiration
+                      ? new Date(item.expiration).toLocaleDateString()
+                      : <span className="text-gray-500">None</span>}
+                  </td>
+                  <td>
+                    {isExpired
+                      ? "Expired"
+                      : item.opened
+                      ? "Open"
+                      : "Unopened"}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -207,13 +293,28 @@ function Inventory() {
       {/* Add Item Modal */}
       <AddItemModal
         isOpen={showModal}
-        onClose={handleModalClose}
-        onSuccess={handleModalSuccess}
+        onClose={() => setShowModal(false)}
+        onSuccess={() => {
+          fetchInventory();
+          setShowModal(false);
+        }}
         products={products}
-        categories={categories.map((c) => ({ id: c, name: c }))}
-        locations={locations.map((l) => ({ id: l, name: l }))}
-        stores={stores.map((s) => ({ id: s, name: s }))}
-        units={units.map((u) => ({ id: u, name: u }))}
+        categories={categories}
+        locations={locations}
+        stores={stores}
+        units={units}
+      />
+
+      {/* Universal Action Modal */}
+      <ActionModal
+        isOpen={actionModal.open}
+        onClose={closeActionModal}
+        actionType={actionModal.actionType}
+        item={actionModal.item}
+        maxQuantity={actionModal.maxQuantity}
+        onConfirm={handleActionConfirm}
+        isExpired={actionModal.isExpired}
+        askAddToList={actionModal.askAddToList}
       />
     </div>
   );
