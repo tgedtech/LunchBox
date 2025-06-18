@@ -43,7 +43,7 @@ function Inventory() {
     askAddToList: false,
   });
 
-  // Fetch all inventory and master data on mount
+  // Fetch inventory data from the backend
   const fetchInventory = async () => {
     try {
       const res = await axios.get('/inventory');
@@ -53,6 +53,7 @@ function Inventory() {
     }
   };
 
+  // Fetch all master data (products, categories, etc.)
   const fetchMasterData = async () => {
     try {
       const [productsRes, categoriesRes, locationsRes, storesRes, unitsRes] = await Promise.all([
@@ -77,9 +78,7 @@ function Inventory() {
     fetchMasterData();
   }, []);
 
-  /**
-   * Opens the ActionModal for a given item and action type.
-   */
+  // Open the action modal for "open", "remove", or "addToList"
   const openActionModal = (type, item, options = {}) => {
     setActionModal({
       open: true,
@@ -91,9 +90,7 @@ function Inventory() {
     });
   };
 
-  /**
-   * Closes the ActionModal.
-   */
+  // Close the action modal
   const closeActionModal = () =>
     setActionModal({
       open: false,
@@ -104,9 +101,7 @@ function Inventory() {
       askAddToList: false,
     });
 
-  /**
-   * Local UI update after any action.
-   */
+  // Update local state after actions
   const updateInventoryItems = (originalItem, updatedArray) => {
     setInventoryItems(prev => {
       let newItems = prev.filter(item => item.id !== originalItem.id);
@@ -120,24 +115,22 @@ function Inventory() {
     });
   };
 
+  // After a modal action, close modal and refetch
   const handleActionConfirm = async ({ quantity, addToList }) => {
     closeActionModal();
     fetchInventory();
   };
 
   /**
-   * Groups inventory items for Category 2 (long-lasting) by product/location/unit/store.
-   * Returns:
-   *   - unopened (quantity, item)
-   *   - opened (item)
+   * Groups Category 2 & 3 items by unique key for merge display.
+   * Each group can have at most one unopened and one opened item.
    */
-  function groupCat2(items) {
-    // Key: productId-locationId-unit-storeId (null store OK)
+  function groupCat2and3(items) {
     const groups = {};
     items.forEach(item => {
-      if (item.product?.inventoryBehavior !== 2) return;
+      if (![2, 3].includes(item.product?.inventoryBehavior)) return;
       const key = [item.productId, item.locationId, item.unit, item.storeId || ''].join('-');
-      if (!groups[key]) groups[key] = { unopened: null, opened: null };
+      if (!groups[key]) groups[key] = { unopened: null, opened: null, behavior: item.product.inventoryBehavior };
       if (item.opened) {
         groups[key].opened = item;
       } else {
@@ -148,110 +141,134 @@ function Inventory() {
   }
 
   /**
-   * For display: merges Category 2 opened/unopened as single logical rows
-   * For others: returns as-is
+   * Merges Category 2 & 3 inventory into single logical rows for display.
    */
   function mergedInventoryRows(items) {
-    const cat2Groups = groupCat2(items);
+    const groups = groupCat2and3(items);
     const handled = new Set();
     const rows = [];
 
     items.forEach(item => {
-      if (item.product?.inventoryBehavior !== 2) {
+      const behavior = item.product?.inventoryBehavior;
+      if (![2, 3].includes(behavior)) {
         rows.push(item);
       } else {
-        // Only display one row per group
         const key = [item.productId, item.locationId, item.unit, item.storeId || ''].join('-');
         if (handled.has(key)) return;
-        const group = cat2Groups[key];
+        const group = groups[key];
         if (!group.unopened && group.opened) {
-          // Only opened left
-          rows.push(group.opened);
+          rows.push({ ...group.opened, mergedCat: behavior });
         } else if (group.unopened && !group.opened) {
-          // Only unopened left
-          rows.push(group.unopened);
+          rows.push({ ...group.unopened, mergedCat: behavior });
         } else if (group.unopened && group.opened) {
-          // Both exist: merge into a single row object for rendering
           rows.push({
             ...group.unopened,
-            // Attach both for rendering: don't duplicate
             _unopened: group.unopened,
             _opened: group.opened,
-            mergedCat2: true,
+            mergedCat: behavior,
           });
         }
         handled.add(key);
       }
     });
-
     return rows;
   }
 
   /**
-   * Table row actions.
-   * Category 2 (long-lasting): 
-   *   - "Open" if unopened and not already open
-   *   - "Remove" if opened
-   *   - If both exist (merged row), "Remove" acts on opened, cannot "Open" another until opened is removed.
-   * Category 1: always "Open" (and remove when 0 left)
+   * Render actions for merged Cat 2/3 rows (all cases).
+   * Handles Open, Remove, Add to Shopping List.
+   * Remove button color (DaisyUI): default/primary/warning/error based on expiration window.
    */
-  const renderActions = (item) => {
-  const categoryType = item.product?.inventoryBehavior || 1;
+  const renderActions = (item, expStatus) => {
+    const categoryType = item.product?.inventoryBehavior || 1;
 
-  // CATEGORY 2: merged row = opened+unopened, only REMOVE
-  if (item.mergedCat2) {
-    return (
-      <div className="flex gap-2">
-        <button
-          className="btn btn-sm btn-primary font-nunito-sans text-primary-content"
-          onClick={() => openActionModal('open', item._opened)}
-        >
-          Remove
-        </button>
-        <button
-          className="btn btn-sm btn-success font-nunito-sans text-success-content"
-          onClick={() => openActionModal('addToList', item._opened)}
-        >
-          Add to Shopping List
-        </button>
-      </div>
-    );
-  }
-  // CATEGORY 2: unopened
-  if (categoryType === 2 && !item.opened) {
-    return (
-      <div className="flex gap-2">
-        <button
-          className="btn btn-sm btn-primary font-nunito-sans text-primary-content"
-          onClick={() => openActionModal('open', item)}
-        >
-          Open
-        </button>
-        <button
-          className="btn btn-sm btn-success font-nunito-sans text-success-content"
-          onClick={() => openActionModal('addToList', item)}
-        >
-          Add to Shopping List
-        </button>
-      </div>
-    );
-  }
-  // CATEGORY 2: opened only (no unopened left)
-  if (categoryType === 2 && item.opened) {
-    // If expired: use error, warning, etc. class
-    let btnClass = "btn btn-sm btn-primary font-nunito-sans text-primary-content";
-    if (item.expiration && new Date(item.expiration) < new Date()) {
-      btnClass = "btn btn-sm btn-error font-nunito-sans text-error-content";
-    } else if (item.expiration && new Date(item.expiration) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) {
-      btnClass = "btn btn-sm btn-warning font-nunito-sans text-warning-content";
+    // Cat 2/3: merged row with both opened and unopened
+    if (item.mergedCat && item._opened && item._unopened) {
+      // Remove only applies to opened, can't open another until removed
+      const btnClass = getRemoveBtnClass(item._opened, expStatus);
+      return (
+        <div className="flex gap-2">
+          <button
+            className={btnClass}
+            onClick={() => openActionModal('open', item._opened)}
+          >
+            Remove
+          </button>
+          <button
+            className="btn btn-sm btn-success font-nunito-sans text-success-content"
+            onClick={() => openActionModal('addToList', item._opened)}
+          >
+            Add to Shopping List
+          </button>
+        </div>
+      );
     }
+    // Cat 2/3: unopened only
+    if (item.mergedCat && !item.opened) {
+      return (
+        <div className="flex gap-2">
+          <button
+            className="btn btn-sm btn-primary font-nunito-sans text-primary-content"
+            onClick={() => openActionModal('open', item)}
+          >
+            Open
+          </button>
+          <button
+            className="btn btn-sm btn-success font-nunito-sans text-success-content"
+            onClick={() => openActionModal('addToList', item)}
+          >
+            Add to Shopping List
+          </button>
+        </div>
+      );
+    }
+    // Cat 2/3: opened only
+    if (item.mergedCat && item.opened) {
+      const btnClass = getRemoveBtnClass(item, expStatus);
+      return (
+        <div className="flex gap-2">
+          <button
+            className={btnClass}
+            onClick={() => openActionModal('open', item)}
+          >
+            Remove
+          </button>
+          <button
+            className="btn btn-sm btn-success font-nunito-sans text-success-content"
+            onClick={() => openActionModal('addToList', item)}
+          >
+            Add to Shopping List
+          </button>
+        </div>
+      );
+    }
+    // Cat 1 (default): unopened
+    if (!item.opened) {
+      return (
+        <div className="flex gap-2">
+          <button
+            className="btn btn-sm btn-primary font-nunito-sans text-primary-content"
+            onClick={() => openActionModal('open', item)}
+          >
+            Open
+          </button>
+          <button
+            className="btn btn-sm btn-success font-nunito-sans text-success-content"
+            onClick={() => openActionModal('addToList', item)}
+          >
+            Add to Shopping List
+          </button>
+        </div>
+      );
+    }
+    // Cat 1 (default): opened/expired
     return (
       <div className="flex gap-2">
         <button
-          className={btnClass}
-          onClick={() => openActionModal('open', item)}
+          className="btn btn-sm btn-error font-nunito-sans text-error-content"
+          onClick={() => openActionModal('remove', item)}
         >
-          Remove
+          Remove from Inventory
         </button>
         <button
           className="btn btn-sm btn-success font-nunito-sans text-success-content"
@@ -261,69 +278,66 @@ function Inventory() {
         </button>
       </div>
     );
-  }
-  // CATEGORY 1/3 (normal)
-  if (!item.opened) {
-    return (
-      <div className="flex gap-2">
-        <button
-          className="btn btn-sm btn-primary font-nunito-sans text-primary-content"
-          onClick={() => openActionModal('open', item)}
-        >
-          Open
-        </button>
-        <button
-          className="btn btn-sm btn-success font-nunito-sans text-success-content"
-          onClick={() => openActionModal('addToList', item)}
-        >
-          Add to Shopping List
-        </button>
-      </div>
-    );
-  }
-  // Opened, not category 2
-  return (
-    <div className="flex gap-2">
-      <button
-        className="btn btn-sm btn-error font-nunito-sans text-error-content"
-        onClick={() => openActionModal('remove', item)}
-      >
-        Remove from Inventory
-      </button>
-      <button
-        className="btn btn-sm btn-success font-nunito-sans text-success-content"
-        onClick={() => openActionModal('addToList', item)}
-      >
-        Add to Shopping List
-      </button>
-    </div>
-  );
-};
+  };
 
   /**
-   * Renders quantity column, e.g. "2 bottles | 1 open"
+   * Utility: Returns DaisyUI btn-warning/error/primary for REMOVE based on expiration.
+   * @param {*} item 
+   * @param {*} expStatus 
+   */
+  function getRemoveBtnClass(item, expStatus) {
+    // expStatus: { isExpired, isErrorWindow, isWarningWindow }
+    if (expStatus.isExpired) {
+      return "btn btn-sm btn-error font-nunito-sans text-error-content";
+    }
+    if (expStatus.isErrorWindow) {
+      return "btn btn-sm btn-error font-nunito-sans text-error-content";
+    }
+    if (expStatus.isWarningWindow) {
+      return "btn btn-sm btn-warning font-nunito-sans text-warning-content";
+    }
+    return "btn btn-sm btn-primary font-nunito-sans text-primary-content";
+  }
+
+  /**
+   * Render quantity: "X units | 1 open" for merged Cat 2/3 rows.
    */
   function renderQuantityCell(item) {
-    // Category 2, merged row
-    if (item.mergedCat2) {
+    if (item.mergedCat && item._unopened && item._opened) {
       const unopened = item._unopened?.quantity || 0;
       const opened = item._opened?.quantity || 0;
       return `${unopened} ${item.unit}${unopened !== 1 ? 's' : ''} | ${opened} open`;
     }
-    // Category 2, only unopened
-    if (item.product?.inventoryBehavior === 2 && !item.opened) {
+    if (item.mergedCat && !item.opened) {
       return `${item.quantity} ${item.unit}${item.quantity !== 1 ? 's' : ''}`;
     }
-    // Category 2, only opened
-    if (item.product?.inventoryBehavior === 2 && item.opened) {
-      return `${item.quantity} ${item.unit}${item.quantity !== 1 ? 's' : ''} | ${item.quantity} open`;
+    if (item.mergedCat && item.opened) {
+      return `${item.quantity} ${item.unit}${item.quantity !== 1 ? 's' : ''} open`;
     }
-    // Others: as previously
-    return `${item.quantity}`;
+    return `${item.quantity} ${item.unit ? item.unit : ''}`.trim();
   }
 
   /**
-   * Renders each inventory table row.
+   * Calculate expiration window flags for styling/buttons.
+   * Returns { isExpired, isErrorWindow, isWarningWindow }
+   * - isExpired: expired (< now)
+   * - isErrorWindow: expires in <= 7 days (7 * 24 * 60 * 60 * 1000 ms)
+   * - isWarningWindow: expires in <= 14 days, > 7 days
+   */
+  function getExpirationStatus(expDate) {
+    if (!expDate) return { isExpired: false, isErrorWindow: false, isWarningWindow: false };
+    const now = new Date();
+    const exp = new Date(expDate);
+    const msDiff = exp - now;
+    const oneDay = 24 * 60 * 60 * 1000;
+    if (exp < now) return { isExpired: true, isErrorWindow: false, isWarningWindow: false };
+    if (msDiff <= 7 * oneDay) return { isExpired: false, isErrorWindow: true, isWarningWindow: false };
+    if (msDiff <= 14 * oneDay) return { isExpired: false, isErrorWindow: false, isWarningWindow: true };
+    return { isExpired: false, isErrorWindow: false, isWarningWindow: false };
+  }
+
+  /**
+   * Table rendering.
    */
   return (
     <div className="p-4 pb-24">
@@ -357,23 +371,40 @@ function Inventory() {
           </thead>
           <tbody>
             {mergedInventoryRows(inventoryItems).map((item) => {
-              const isExpiring =
-                item.expiration && new Date(item.expiration) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) &&
-                new Date(item.expiration) > new Date();
-              const isExpired = item.expiration && new Date(item.expiration) < new Date();
+              // For merged Cat 2/3: opened gets priority for expiration/status coloring, fallback to unopened
+              let expDate = item.expiration;
+              if (item.mergedCat && item._opened && item._opened.expiration) {
+                expDate = item._opened.expiration;
+              } else if (item.mergedCat && item._unopened && item._unopened.expiration) {
+                expDate = item._unopened.expiration;
+              }
+              // Compute expiration flags
+              const expStatus = getExpirationStatus(expDate);
+
+              // Status logic: prefer status of opened unit if merged
+              let status = "Unopened";
+              if (item.mergedCat && item._opened) {
+                status = expStatus.isExpired ? "Expired" : "Open";
+              } else if (item.opened) {
+                status = expStatus.isExpired ? "Expired" : "Open";
+              } else if (expStatus.isExpired) {
+                status = "Expired";
+              }
+
+              // Row coloring (DaisyUI): error=expired or error window, warning=warning window, else default
+              let rowClass = "";
+              if (expStatus.isExpired || expStatus.isErrorWindow) {
+                rowClass = "bg-error/20 text-error";
+              } else if (expStatus.isWarningWindow) {
+                rowClass = "bg-warning/20 text-warning";
+              }
 
               return (
                 <tr
-                  key={item.id + (item.mergedCat2 ? '_cat2' : '')}
-                  className={
-                    isExpired
-                      ? "bg-error/20 text-error"
-                      : isExpiring
-                      ? "bg-warning/20 text-warning"
-                      : ""
-                  }
+                  key={item.id + (item.mergedCat ? '_catmerge' : '')}
+                  className={rowClass}
                 >
-                  <td>{renderActions(item)}</td>
+                  <td>{renderActions(item, expStatus)}</td>
                   <td>{item.product?.name}</td>
                   <td>{renderQuantityCell(item)}</td>
                   <td>{item.unit}</td>
@@ -386,16 +417,12 @@ function Inventory() {
                       : <span className="text-gray-500">None</span>}
                   </td>
                   <td>
-                    {item.expiration
-                      ? new Date(item.expiration).toLocaleDateString()
+                    {expDate
+                      ? new Date(expDate).toLocaleDateString()
                       : <span className="text-gray-500">None</span>}
                   </td>
                   <td>
-                    {isExpired
-                      ? "Expired"
-                      : item.opened
-                      ? "Open"
-                      : "Unopened"}
+                    {status}
                   </td>
                 </tr>
               );
