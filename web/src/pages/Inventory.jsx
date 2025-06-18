@@ -31,7 +31,6 @@ function Inventory() {
 
   const [showModal, setShowModal] = useState(false);
 
-  // Always initialize modal state as CLOSED (open: false)
   const [actionModal, setActionModal] = useState({
     open: false,
     actionType: null,
@@ -74,7 +73,6 @@ function Inventory() {
     fetchMasterData();
   }, []);
 
-  // Only opens modal in response to user click
   const openActionModal = (type, item, options = {}) => {
     setActionModal({
       open: true,
@@ -86,7 +84,6 @@ function Inventory() {
     });
   };
 
-  // Always fully reset modal state
   const closeActionModal = () =>
     setActionModal({
       open: false,
@@ -143,34 +140,38 @@ function Inventory() {
           const bExp = b.expiration ? new Date(b.expiration) : new Date(9999, 11, 31);
           return aExp - bExp;
         }
+        if (filters.sortBy === 'Price') {
+          return (b.price || 0) - (a.price || 0);
+        }
         return 0;
       });
   };
 
-  const handleActionConfirm = async ({ quantity, addToList }) => {
-    const { actionType, item, isExpired } = actionModal;
-
-    if (actionType === 'open') {
-      console.log(`Open/use ${quantity} of`, item.product?.name);
-    } else if (actionType === 'remove') {
-      if (isExpired) {
-        if (addToList) {
-          console.log('Add to shopping list:', item.product?.name);
-        }
-        console.log('Remove expired item:', item.product?.name);
-      } else {
-        console.log('Remove/consume:', quantity, item.product?.name);
+  // [C] Update inventory immediately after backend open/remove
+  const updateInventoryItems = (originalItem, updatedArray) => {
+    setInventoryItems(prev => {
+      // Remove the original item from inventory
+      let newItems = prev.filter(item => item.id !== originalItem.id);
+      // Add in new items from backend (e.g. the opened part)
+      if (Array.isArray(updatedArray)) {
+        // Remove any duplicate IDs
+        const ids = new Set(newItems.map(i => i.id));
+        updatedArray.forEach(item => {
+          if (item && !ids.has(item.id)) newItems.push(item);
+        });
       }
-    } else if (actionType === 'addToList') {
-      console.log('Add to shopping list:', item.product?.name);
-    }
+      return newItems;
+    });
+  };
+
+  const handleActionConfirm = async ({ quantity, addToList }) => {
+    // intentionally empty, the updateInventoryItems handles UI immediately
     closeActionModal();
-    fetchInventory();
+    fetchInventory(); // in background, so we always re-sync eventually
   };
 
   const renderActions = (item) => {
     const categoryType = item.product?.inventoryBehavior || 1;
-
     if (!item.opened) {
       return (
         <div className="flex space-x-2">
@@ -191,7 +192,6 @@ function Inventory() {
         </div>
       );
     }
-
     if (categoryType === 2 || categoryType === 3) {
       return (
         <div className="flex space-x-2">
@@ -212,7 +212,6 @@ function Inventory() {
         </div>
       );
     }
-
     return null;
   };
 
@@ -226,7 +225,7 @@ function Inventory() {
         locations={locations.map(l => l.name)}
         categories={categories.map(c => c.name)}
         expirations={['Expired', 'Expiring Soon', 'Valid']}
-        sortOptions={['Name', 'Quantity', 'Expiration']}
+        sortOptions={['Name', 'Quantity', 'Expiration', 'Price']}
       />
 
       {/* Inventory Table */}
@@ -237,8 +236,11 @@ function Inventory() {
               <th>Actions</th>
               <th>Item Name</th>
               <th>Quantity</th>
+              <th>Unit</th>
               <th>Location</th>
               <th>Category</th>
+              <th>Store</th>
+              <th>Price</th>
               <th>Expiration</th>
               <th>Status</th>
             </tr>
@@ -250,9 +252,9 @@ function Inventory() {
                 new Date(item.expiration) > new Date();
               const isExpired = item.expiration && new Date(item.expiration) < new Date();
 
-              let quantityCell = `${item.quantity} ${item.unit}`;
+              let quantityCell = `${item.quantity}`;
               if (item.opened && (item.product?.inventoryBehavior === 2 || item.product?.inventoryBehavior === 3)) {
-                quantityCell += ` | ${item.opened} open`;
+                quantityCell += ` | open`;
               }
 
               return (
@@ -269,8 +271,15 @@ function Inventory() {
                   <td>{renderActions(item)}</td>
                   <td>{item.product?.name}</td>
                   <td>{quantityCell}</td>
+                  <td>{item.unit}</td>
                   <td>{item.location?.name}</td>
                   <td>{item.product?.category?.name || 'Uncategorized'}</td>
+                  <td>{item.store?.name || ''}</td>
+                  <td>
+                    {typeof item.price === 'number'
+                      ? `$${item.price.toFixed(2)}`
+                      : <span className="text-gray-500">None</span>}
+                  </td>
                   <td>
                     {item.expiration
                       ? new Date(item.expiration).toLocaleDateString()
@@ -315,6 +324,7 @@ function Inventory() {
         onConfirm={handleActionConfirm}
         isExpired={actionModal.isExpired}
         askAddToList={actionModal.askAddToList}
+        updateInventoryItems={updateInventoryItems} // << KEY CHANGE
       />
     </div>
   );

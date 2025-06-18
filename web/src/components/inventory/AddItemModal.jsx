@@ -2,14 +2,20 @@ import React, { useEffect, useState } from 'react';
 import CreatableSelect from 'react-select/creatable';
 import axios from '../../utils/axiosInstance';
 
-// Utility: always normalize select value to { value: id, label: name }
+// Helper for mapping values
 function getOptionByValue(val, arr) {
   if (!val) return null;
   if (typeof val === 'object' && val.value) return val;
-  // Try to match by id (uuid) or by name (legacy/edge case)
   const found = arr.find(a => a.id === val || a.name === val);
   return found ? { value: found.id, label: found.name } : null;
 }
+
+// Inventory behaviors
+const INVENTORY_BEHAVIOR_OPTIONS = [
+  { value: 1, label: 'Remove from Inventory Once Open' },
+  { value: 2, label: 'Keeps for a Long Time Once Open' },
+  { value: 3, label: 'Goes Bad Once Open' },
+];
 
 function AddItemModal({
   isOpen,
@@ -22,14 +28,18 @@ function AddItemModal({
   units = [],
   existingItems = [],
 }) {
+  // State for each field in your sample
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
+  const [price, setPrice] = useState('');
   const [expiration, setExpiration] = useState('');
+  const [inventoryBehavior, setInventoryBehavior] = useState(1); // default: Remove when opened
 
+  // Errors
   const [error, setError] = useState('');
   const [apiError, setApiError] = useState('');
 
@@ -41,15 +51,17 @@ function AddItemModal({
       setSelectedLocation(null);
       setSelectedStore(null);
       setSelectedUnit(null);
+      setPrice('');
       setExpiration('');
+      setInventoryBehavior(1);
       setError('');
       setApiError('');
     }
   }, [isOpen]);
 
+  // Product selection with duplicate check
   const handleProductChange = (newValue) => {
     setSelectedProduct(getOptionByValue(newValue, products));
-
     if (newValue?.__isNew__ && existingItems.length > 0) {
       const trimmed = newValue.label.trim().toLowerCase();
       const duplicate = existingItems.some(
@@ -60,26 +72,30 @@ function AddItemModal({
         return;
       }
     }
-
+    // Prefill category/location/unit if product exists
     if (!newValue?.__isNew__) {
       const existing = products.find((p) => p.id === newValue?.value);
       if (existing) {
         setSelectedCategory(existing.category ? { value: existing.category.id, label: existing.category.name } : null);
         setSelectedLocation(existing.defaultLocation ? { value: existing.defaultLocation.id, label: existing.defaultLocation.name } : null);
         setSelectedUnit(existing.defaultUnitType ? { value: existing.defaultUnitType.id, label: existing.defaultUnitType.name } : null);
+        setInventoryBehavior(existing.inventoryBehavior || 1);
       } else {
         setSelectedCategory(null);
         setSelectedLocation(null);
         setSelectedUnit(null);
+        setInventoryBehavior(1);
       }
     } else {
       setSelectedCategory(null);
       setSelectedLocation(null);
       setSelectedUnit(null);
+      setInventoryBehavior(1);
     }
     setError('');
   };
 
+  // react-select styles
   const selectStyle = {
     control: (provided, state) => ({
       ...provided,
@@ -122,7 +138,6 @@ function AddItemModal({
     }),
   };
 
-  // Always resolve the .value to a valid UUID for POSTs
   function getIdFromSelect(val, arr) {
     if (!val) return null;
     if (typeof val === 'object' && val.value) return val.value;
@@ -130,12 +145,21 @@ function AddItemModal({
     return found ? found.id : null;
   }
 
+  // Full save logic, including all fields
   const handleSave = async () => {
     setApiError('');
     setError('');
 
     if (!selectedProduct || !selectedProduct.label?.trim()) {
       setError('Product name is required');
+      return;
+    }
+    if (quantity <= 0) {
+      setError('Quantity must be greater than zero');
+      return;
+    }
+    if (price && isNaN(Number(price))) {
+      setError('Price must be a valid number');
       return;
     }
 
@@ -175,11 +199,16 @@ function AddItemModal({
           categoryId: catId,
           defaultLocationId: locId,
           defaultUnitTypeId: unitId,
+          inventoryBehavior: inventoryBehavior,
         });
         productId = productRes.data.id;
         setSelectedProduct({ value: productRes.data.id, label: productRes.data.name });
       } else {
         productId = getIdFromSelect(selectedProduct, products);
+        // Optionally update inventory behavior if changed
+        if (productId) {
+          await axios.put(`/products/${productId}`, { inventoryBehavior });
+        }
       }
 
       await axios.post('/inventory', {
@@ -189,6 +218,8 @@ function AddItemModal({
         quantity,
         expiration: expiration ? new Date(expiration).toISOString() : null,
         opened: false,
+        price: price ? parseFloat(price) : null,
+        storeId,
       });
 
       onSuccess && onSuccess();
@@ -203,11 +234,8 @@ function AddItemModal({
     <>
       <input type="checkbox" id="add-item-modal" className="modal-toggle" checked={isOpen} readOnly />
       <div className="modal">
-        <div className="modal-box rounded-2xl border border-base-300 bg-primary-content shadow-xl">
-          <h2 className="text-xl font-quicksand font-bold text-primary mb-4">
-            Add Item
-          </h2>
-
+        <div className="modal-box rounded-2xl border border-base-300 bg-base-100 shadow-xl">
+          <h2 className="font-quicksand font-black text-xl text-base-content mb-4">Add Item</h2>
           {apiError && (
             <div className="alert alert-error mb-4">
               <span>{apiError}</span>
@@ -218,98 +246,127 @@ function AddItemModal({
               <span>{error}</span>
             </div>
           )}
+          {/* Product Name */}
+          <label className="label font-quicksand font-black text-base-content">Product Name</label>
+          <CreatableSelect
+            styles={selectStyle}
+            value={selectedProduct}
+            onChange={handleProductChange}
+            options={products.map((p) => ({ value: p.id, label: p.name }))}
+            placeholder="Enter or Select a Product"
+            isClearable
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            formatCreateLabel={inputValue => `Create "${inputValue}"`}
+          />
 
-          <div className="mb-4">
-            <label className="block text-sm font-bold mb-1 font-quicksand">Product Name</label>
-            <CreatableSelect
-              styles={selectStyle}
-              value={selectedProduct}
-              onChange={handleProductChange}
-              options={products.map((p) => ({ value: p.id, label: p.name }))}
-              placeholder="Enter or select product"
-              isClearable
-              menuPortalTarget={document.body}
-              menuPosition="fixed"
-              formatCreateLabel={inputValue => `Create "${inputValue}"`}
-            />
+          {/* Quantity */}
+          <label className="label font-quicksand font-black text-base-content mt-4">Quantity</label>
+          <input
+            type="number"
+            min={1}
+            placeholder="Enter How Many"
+            className="input bg-neutral-content w-full"
+            value={quantity}
+            onChange={e => setQuantity(Number(e.target.value))}
+          />
+
+          {/* Category */}
+          <label className="label font-quicksand font-black text-base-content mt-4">Category</label>
+          <CreatableSelect
+            styles={selectStyle}
+            value={selectedCategory}
+            onChange={v => setSelectedCategory(getOptionByValue(v, categories))}
+            options={categories.map((c) => ({ value: c.id, label: c.name }))}
+            placeholder="Select a Category"
+            isClearable
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            formatCreateLabel={inputValue => `Create "${inputValue}"`}
+          />
+
+          {/* Unit */}
+          <label className="label font-quicksand font-black text-base-content mt-4">Unit</label>
+          <CreatableSelect
+            styles={selectStyle}
+            value={selectedUnit}
+            onChange={v => setSelectedUnit(getOptionByValue(v, units))}
+            options={units.map((u) => ({ value: u.id, label: u.name }))}
+            placeholder="How do you count this?"
+            isClearable
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            formatCreateLabel={inputValue => `Create "${inputValue}"`}
+          />
+
+          {/* Location */}
+          <label className="label font-quicksand font-black text-base-content mt-4">Location</label>
+          <CreatableSelect
+            styles={selectStyle}
+            value={selectedLocation}
+            onChange={v => setSelectedLocation(getOptionByValue(v, locations))}
+            options={locations.map((l) => ({ value: l.id, label: l.name }))}
+            placeholder="Where do you store it?"
+            isClearable
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            formatCreateLabel={inputValue => `Create "${inputValue}"`}
+          />
+
+          {/* Store */}
+          <label className="label font-quicksand font-black text-base-content mt-4">Store</label>
+          <CreatableSelect
+            styles={selectStyle}
+            value={selectedStore}
+            onChange={v => setSelectedStore(getOptionByValue(v, stores))}
+            options={stores.map((s) => ({ value: s.id, label: s.name }))}
+            placeholder="Where did you buy it?"
+            isClearable
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            formatCreateLabel={inputValue => `Create "${inputValue}"`}
+          />
+
+          {/* Price */}
+          <label className="label font-quicksand font-black text-base-content mt-4">Price</label>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder="Enter Price Paid"
+            className="input bg-neutral-content w-full"
+            value={price}
+            onChange={e => setPrice(e.target.value)}
+          />
+
+          {/* Expiration */}
+          <label className="label font-quicksand font-black text-base-content mt-4">Expiration or Best Buy Date</label>
+          <input
+            type="date"
+            className="input bg-neutral-content w-full"
+            value={expiration}
+            onChange={e => setExpiration(e.target.value)}
+          />
+
+          {/* Inventory Behavior (Radio Group) */}
+          <label className="label font-quicksand font-black text-base-content mt-4">Inventory Options</label>
+          <div className="join join-vertical w-full mb-4">
+            {INVENTORY_BEHAVIOR_OPTIONS.map(opt => (
+              <label key={opt.value} className="flex items-center gap-2 cursor-pointer join-item">
+                <input
+                  type="radio"
+                  name="inventory-option"
+                  className="radio radio-primary"
+                  value={opt.value}
+                  checked={inventoryBehavior === opt.value}
+                  onChange={() => setInventoryBehavior(opt.value)}
+                />
+                <span className="font-quicksand text-base-content">{opt.label}</span>
+              </label>
+            ))}
           </div>
-          <div className="mb-4">
-            <label className="block text-sm font-bold mb-1 font-quicksand">Quantity</label>
-            <input
-              type="number"
-              min={1}
-              className="input input-bordered w-full font-nunito-sans"
-              value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-            />
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-bold mb-1 font-quicksand">Category</label>
-            <CreatableSelect
-              styles={selectStyle}
-              value={selectedCategory}
-              onChange={v => setSelectedCategory(getOptionByValue(v, categories))}
-              options={categories.map((c) => ({ value: c.id, label: c.name }))}
-              placeholder="Enter or select category"
-              isClearable
-              menuPortalTarget={document.body}
-              menuPosition="fixed"
-              formatCreateLabel={inputValue => `Create "${inputValue}"`}
-            />
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-bold mb-1 font-quicksand">Location</label>
-            <CreatableSelect
-              styles={selectStyle}
-              value={selectedLocation}
-              onChange={v => setSelectedLocation(getOptionByValue(v, locations))}
-              options={locations.map((l) => ({ value: l.id, label: l.name }))}
-              placeholder="Enter or select location"
-              isClearable
-              menuPortalTarget={document.body}
-              menuPosition="fixed"
-              formatCreateLabel={inputValue => `Create "${inputValue}"`}
-            />
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-bold mb-1 font-quicksand">Store</label>
-            <CreatableSelect
-              styles={selectStyle}
-              value={selectedStore}
-              onChange={v => setSelectedStore(getOptionByValue(v, stores))}
-              options={stores.map((s) => ({ value: s.id, label: s.name }))}
-              placeholder="Enter or select store"
-              isClearable
-              menuPortalTarget={document.body}
-              menuPosition="fixed"
-              formatCreateLabel={inputValue => `Create "${inputValue}"`}
-            />
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-bold mb-1 font-quicksand">Unit</label>
-            <CreatableSelect
-              styles={selectStyle}
-              value={selectedUnit}
-              onChange={v => setSelectedUnit(getOptionByValue(v, units))}
-              options={units.map((u) => ({ value: u.id, label: u.name }))}
-              placeholder="Enter or select unit"
-              isClearable
-              menuPortalTarget={document.body}
-              menuPosition="fixed"
-              formatCreateLabel={inputValue => `Create "${inputValue}"`}
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-sm font-bold mb-1 font-quicksand">
-              Expiration Date (optional)
-            </label>
-            <input
-              type="date"
-              className="input input-bordered w-full font-nunito-sans"
-              value={expiration}
-              onChange={(e) => setExpiration(e.target.value)}
-            />
-          </div>
+
+          {/* Actions */}
           <div className="flex justify-end space-x-2 mt-6 font-nunito-sans">
             <button className="btn btn-outline btn-error" onClick={onClose}>
               Cancel

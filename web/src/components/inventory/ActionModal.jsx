@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import axios from '../../utils/axiosInstance';
 
 function ActionModal({
   isOpen,
@@ -10,18 +11,23 @@ function ActionModal({
   onConfirm,
   isExpired = false,
   askAddToList = false,
+  afterAction,
+  updateInventoryItems, // <-- new: callback to update UI instantly
 }) {
   const [quantity, setQuantity] = useState(1);
   const [addToList, setAddToList] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       setQuantity(1);
       setAddToList(false);
+      setError('');
     }
   }, [isOpen]);
 
-  if (!isOpen) return null; // Only render modal when open
+  if (!isOpen) return null;
 
   let prompt;
   if (actionType === 'open') {
@@ -32,6 +38,41 @@ function ActionModal({
     prompt = `Add to shopping list`;
   }
 
+  const handleBackendUpdate = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      let updatedItems = null;
+      if (actionType === 'open') {
+        if (quantity >= item.quantity) {
+          // Delete item
+          await axios.delete(`/inventory/${item.id}`);
+          updatedItems = []; // item removed
+        } else {
+          // Use split route, get updated items (opened, and maybe remaining)
+          const res = await axios.put(`/inventory/${item.id}/split`, {
+            openQuantity: quantity,
+          });
+          updatedItems = res.data;
+        }
+      } else if (actionType === 'remove') {
+        await axios.delete(`/inventory/${item.id}`);
+        updatedItems = [];
+      }
+      // Pass new items to parent, if callback given (UI instant update)
+      if (updateInventoryItems && typeof updateInventoryItems === 'function') {
+        updateInventoryItems(item, updatedItems || []);
+      }
+      onConfirm?.({ quantity, addToList });
+      afterAction?.();
+      onClose();
+    } catch (err) {
+      setError('Failed to update inventory');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="modal modal-open" aria-modal="true" tabIndex={0}>
       <div className="modal-box rounded-2xl border border-base-300 bg-primary-content shadow-xl">
@@ -41,6 +82,9 @@ function ActionModal({
         <div className="mb-3">
           <div className="font-nunito-sans mb-2 text-base-content">
             {item?.product?.name || item?.name} ({item?.quantity} {item?.unit})
+            {typeof item?.price === 'number' ? (
+              <span className="ml-2 text-base-content/70">(${item.price.toFixed(2)})</span>
+            ) : null}
           </div>
           {(actionType === 'open' || actionType === 'remove') && maxQuantity > 1 && (
             <div>
@@ -55,6 +99,7 @@ function ActionModal({
                 onChange={e => setQuantity(Number(e.target.value))}
                 className="range range-primary"
                 step={1}
+                disabled={loading}
               />
               <div className="mt-1 text-sm text-primary font-bold">
                 {quantity} {item.unit}{quantity > 1 ? 's' : ''}
@@ -70,23 +115,21 @@ function ActionModal({
                   className="checkbox checkbox-primary ml-2"
                   checked={addToList}
                   onChange={e => setAddToList(e.target.checked)}
+                  disabled={loading}
                 />
               </label>
             </div>
           )}
         </div>
+        {error && <div className="alert alert-error mb-2">{error}</div>}
         <div className="modal-action space-x-2 flex justify-end">
-          <button className="btn btn-outline btn-error" onClick={onClose}>
+          <button className="btn btn-outline btn-error" onClick={onClose} disabled={loading}>
             Cancel
           </button>
           <button
-            className="btn btn-primary"
-            onClick={() =>
-              onConfirm({
-                quantity,
-                addToList: askAddToList ? addToList : undefined,
-              })
-            }
+            className={`btn btn-primary${loading ? " loading" : ""}`}
+            onClick={handleBackendUpdate}
+            disabled={loading}
           >
             Confirm
           </button>
@@ -105,6 +148,8 @@ ActionModal.propTypes = {
   onConfirm: PropTypes.func,
   isExpired: PropTypes.bool,
   askAddToList: PropTypes.bool,
+  afterAction: PropTypes.func,
+  updateInventoryItems: PropTypes.func,
 };
 
 export default ActionModal;

@@ -10,6 +10,7 @@ function parseBool(val) {
   return !!val;
 }
 
+// Get all inventory items for user, with filtering for expiration status
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const { expired, expiringSoon } = req.query;
@@ -17,13 +18,11 @@ router.get('/', authMiddleware, async (req, res) => {
     let where = { userId: req.userId };
 
     if (parseBool(expired)) {
-      // Only expired items: expiration exists and expiration < now
       where = {
         ...where,
         expiration: { lt: now },
       };
     } else if (parseBool(expiringSoon)) {
-      // Only expiring soon: expiration exists and now <= expiration <= now + 7 days
       const soon = new Date();
       soon.setDate(soon.getDate() + 7);
       where = {
@@ -43,6 +42,7 @@ router.get('/', authMiddleware, async (req, res) => {
           },
         },
         location: true,
+        store: true,
       },
       orderBy: { updatedAt: 'desc' },
     });
@@ -54,11 +54,9 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// The rest of your CRUD handlers remain unchanged (post/put/delete)...
-// ... [NO CHANGE BELOW THIS LINE]
-
+// Add a new inventory item or increment quantity if match found
 router.post('/', authMiddleware, async (req, res) => {
-  const { productId, locationId, quantity, unit, expiration, opened } = req.body;
+  const { productId, locationId, quantity, unit, expiration, opened, price, storeId } = req.body;
 
   try {
     const existing = await prisma.inventoryItem.findFirst({
@@ -67,6 +65,8 @@ router.post('/', authMiddleware, async (req, res) => {
         productId,
         locationId,
         unit,
+        storeId: storeId || null,
+        opened: false,
       },
     });
 
@@ -97,6 +97,8 @@ router.post('/', authMiddleware, async (req, res) => {
           unit,
           expiration: expiration ? new Date(expiration) : null,
           opened: opened || false,
+          price: price !== undefined ? parseFloat(price) : null,
+          storeId: storeId || null,
           userId: req.userId,
         },
       });
@@ -108,9 +110,10 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
+// Update an inventory item (qty, open status, etc.)
 router.put('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { quantity, unit, expiration, opened, locationId } = req.body;
+  const { quantity, unit, expiration, opened, locationId, price, storeId } = req.body;
 
   try {
     const existing = await prisma.inventoryItem.findUnique({
@@ -129,6 +132,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
         expiration: expiration ? new Date(expiration) : null,
         opened,
         locationId,
+        price: price !== undefined ? parseFloat(price) : existing.price,
+        storeId: storeId || existing.storeId,
       },
     });
 
@@ -139,6 +144,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// Delete an inventory item
 router.delete('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
 
@@ -159,6 +165,93 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Error deleting inventory item:', err);
     res.status(500).json({ error: 'Failed to delete inventory item' });
+  }
+});
+
+// OPEN/SPLIT route: handles category-based logic for opening/using items
+router.put('/:id/split', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { openQuantity } = req.body;
+
+  if (!openQuantity || openQuantity <= 0) {
+    return res.status(400).json({ error: 'Invalid quantity to open' });
+  }
+
+  try {
+    const existing = await prisma.inventoryItem.findUnique({
+      where: { id },
+      include: { product: true },
+    });
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (openQuantity > existing.quantity) {
+      return res.status(400).json({ error: 'Not enough quantity' });
+    }
+
+    const inventoryBehavior = existing.product?.inventoryBehavior || 1;
+
+    if (inventoryBehavior === 1) {
+      // CATEGORY 1: Remove-on-open (consumed immediately)
+      const remaining = existing.quantity - openQuantity;
+      if (remaining > 0) {
+        const updated = await prisma.inventoryItem.update({
+          where: { id },
+          data: { quantity: remaining },
+        });
+        return res.json([updated]);
+      } else {
+        await prisma.inventoryItem.delete({ where: { id } });
+        return res.json([]); // nothing remains
+      }
+    }
+
+    // CATEGORY 2 or 3: Split as before (create an 'opened' item)
+    const updated = await prisma.inventoryItem.update({
+      where: { id },
+      data: { quantity: existing.quantity - openQuantity },
+    });
+
+    const openedItem = await prisma.inventoryItem.create({
+      data: {
+        productId: existing.productId,
+        locationId: existing.locationId,
+        userId: existing.userId,
+        unit: existing.unit,
+        quantity: openQuantity,
+        expiration: existing.expiration,
+        price: existing.price,
+        storeId: existing.storeId,
+        opened: true,
+      },
+    });
+
+    if (updated.quantity <= 0) {
+      await prisma.inventoryItem.delete({ where: { id } });
+    }
+
+    // Return both records for UI refresh (opened and remaining if any)
+    const remainingItems = await prisma.inventoryItem.findMany({
+      where: {
+        OR: [{ id: openedItem.id }, { id }],
+      },
+      include: {
+        product: {
+          include: {
+            category: true,
+            defaultLocation: true,
+            defaultUnitType: true,
+          },
+        },
+        location: true,
+        store: true,
+      },
+    });
+
+    res.json(remainingItems);
+  } catch (err) {
+    console.error('Error splitting inventory item:', err);
+    res.status(500).json({ error: 'Failed to split/open inventory item' });
   }
 });
 

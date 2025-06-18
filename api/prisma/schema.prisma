@@ -53,7 +53,8 @@ model Product {
   category   ProductCategory? @relation(fields: [categoryId], references: [id])
   categoryId String?
 
-  inventoryItems InventoryItem[]
+  inventoryBehavior Int             @default(1)
+  inventoryItems    InventoryItem[]
 }
 
 model InventoryItem {
@@ -62,15 +63,18 @@ model InventoryItem {
   unit       String
   expiration DateTime?
   opened     Boolean   @default(false)
-
-  product   Product @relation(fields: [productId], references: [id])
-  productId String
+  price      Float?
+  product    Product   @relation(fields: [productId], references: [id])
+  productId  String
 
   location   Location @relation(fields: [locationId], references: [id])
   locationId String
 
   user   User   @relation(fields: [userId], references: [id])
   userId String
+
+  store   Store?  @relation(fields: [storeId], references: [id])
+  storeId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -79,4 +83,6 @@ model InventoryItem {
 model Store {
   id   String @id @default(uuid())
   name String @unique
+
+  inventoryItems InventoryItem[]
 }
