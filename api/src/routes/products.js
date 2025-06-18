@@ -31,9 +31,10 @@ router.post('/', authMiddleware, async (req, res) => {
     categoryId,
     defaultLocationId,
     defaultUnitTypeId,
+    inventoryBehavior, // <-- CRUCIAL!
   } = req.body;
 
-  // === DEBUG LOGGING: Output payload and IDs for troubleshooting ===
+  // LOG: Incoming payload
   console.log('--- PRODUCT CREATE PAYLOAD ---');
   console.log({
     name,
@@ -43,9 +44,14 @@ router.post('/', authMiddleware, async (req, res) => {
     categoryId,
     defaultLocationId,
     defaultUnitTypeId,
+    inventoryBehavior,
   });
 
   try {
+    // CRITICAL: Always set inventoryBehavior (default to 1 if not valid)
+    let safeInventoryBehavior = Number(inventoryBehavior);
+    if (![1, 2, 3].includes(safeInventoryBehavior)) safeInventoryBehavior = 1;
+
     const data = {
       name,
       description,
@@ -54,9 +60,10 @@ router.post('/', authMiddleware, async (req, res) => {
       ...(categoryId && { category: { connect: { id: categoryId } } }),
       ...(defaultLocationId && { defaultLocation: { connect: { id: defaultLocationId } } }),
       ...(defaultUnitTypeId && { defaultUnitType: { connect: { id: defaultUnitTypeId } } }),
+      inventoryBehavior: safeInventoryBehavior,
     };
 
-    // Log final Prisma data object for additional verification
+    // LOG: Prisma create data
     console.log('--- PRISMA PRODUCT CREATE DATA ---');
     console.log(data);
 
@@ -68,9 +75,11 @@ router.post('/', authMiddleware, async (req, res) => {
         defaultUnitType: true,
       },
     });
+    // LOG: Product created
+    console.log('--- PRODUCT CREATED ---');
+    console.log(product);
     res.status(201).json(product);
   } catch (err) {
-    // Enhanced error logging for debugging
     console.error('Error creating product:', err);
     if (err.meta) console.error('Prisma error meta:', err.meta);
     res.status(500).json({ error: 'Failed to create product' });
@@ -87,9 +96,27 @@ router.put('/:id', authMiddleware, async (req, res) => {
     categoryId,
     defaultLocationId,
     defaultUnitTypeId,
+    inventoryBehavior, // <-- CRUCIAL!
   } = req.body;
 
+  // LOG: Incoming payload
+  console.log('--- PRODUCT UPDATE PAYLOAD ---');
+  console.log({
+    name,
+    description,
+    defaultQuantity,
+    defaultUnit,
+    categoryId,
+    defaultLocationId,
+    defaultUnitTypeId,
+    inventoryBehavior,
+  });
+
   try {
+    // CRITICAL: Always set inventoryBehavior (default to 1 if not valid)
+    let safeInventoryBehavior = Number(inventoryBehavior);
+    if (![1, 2, 3].includes(safeInventoryBehavior)) safeInventoryBehavior = 1;
+
     const data = {
       name,
       description,
@@ -104,7 +131,12 @@ router.put('/:id', authMiddleware, async (req, res) => {
       defaultUnitType: defaultUnitTypeId
         ? { connect: { id: defaultUnitTypeId } }
         : { disconnect: true },
+      inventoryBehavior: safeInventoryBehavior,
     };
+
+    // LOG: Prisma update data
+    console.log('--- PRISMA PRODUCT UPDATE DATA ---');
+    console.log(data);
 
     const product = await prisma.product.update({
       where: { id },
@@ -115,6 +147,9 @@ router.put('/:id', authMiddleware, async (req, res) => {
         defaultUnitType: true,
       },
     });
+    // LOG: Product updated
+    console.log('--- PRODUCT UPDATED ---');
+    console.log(product);
     res.json(product);
   } catch (err) {
     console.error('Error updating product:', err);

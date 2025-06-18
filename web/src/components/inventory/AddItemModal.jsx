@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import CreatableSelect from 'react-select/creatable';
 import axios from '../../utils/axiosInstance';
 
-// Helper for mapping values
 function getOptionByValue(val, arr) {
   if (!val) return null;
   if (typeof val === 'object' && val.value) return val;
@@ -10,7 +9,6 @@ function getOptionByValue(val, arr) {
   return found ? { value: found.id, label: found.name } : null;
 }
 
-// Inventory behaviors
 const INVENTORY_BEHAVIOR_OPTIONS = [
   { value: 1, label: 'Remove from Inventory Once Open' },
   { value: 2, label: 'Keeps for a Long Time Once Open' },
@@ -27,8 +25,8 @@ function AddItemModal({
   stores = [],
   units = [],
   existingItems = [],
+  refreshMasterData,
 }) {
-  // State for each field in your sample
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -37,12 +35,11 @@ function AddItemModal({
   const [selectedUnit, setSelectedUnit] = useState(null);
   const [price, setPrice] = useState('');
   const [expiration, setExpiration] = useState('');
-  const [inventoryBehavior, setInventoryBehavior] = useState(1); // default: Remove when opened
-
-  // Errors
+  const [inventoryBehavior, setInventoryBehavior] = useState(1);
   const [error, setError] = useState('');
   const [apiError, setApiError] = useState('');
 
+  // Fully reset modal on open
   useEffect(() => {
     if (isOpen) {
       setSelectedProduct(null);
@@ -59,7 +56,6 @@ function AddItemModal({
     }
   }, [isOpen]);
 
-  // Product selection with duplicate check
   const handleProductChange = (newValue) => {
     setSelectedProduct(getOptionByValue(newValue, products));
     if (newValue?.__isNew__ && existingItems.length > 0) {
@@ -72,14 +68,13 @@ function AddItemModal({
         return;
       }
     }
-    // Prefill category/location/unit if product exists
     if (!newValue?.__isNew__) {
       const existing = products.find((p) => p.id === newValue?.value);
       if (existing) {
         setSelectedCategory(existing.category ? { value: existing.category.id, label: existing.category.name } : null);
         setSelectedLocation(existing.defaultLocation ? { value: existing.defaultLocation.id, label: existing.defaultLocation.name } : null);
         setSelectedUnit(existing.defaultUnitType ? { value: existing.defaultUnitType.id, label: existing.defaultUnitType.name } : null);
-        setInventoryBehavior(existing.inventoryBehavior || 1);
+        setInventoryBehavior(Number(existing.inventoryBehavior) || 1);
       } else {
         setSelectedCategory(null);
         setSelectedLocation(null);
@@ -95,7 +90,6 @@ function AddItemModal({
     setError('');
   };
 
-  // react-select styles
   const selectStyle = {
     control: (provided, state) => ({
       ...provided,
@@ -145,7 +139,6 @@ function AddItemModal({
     return found ? found.id : null;
   }
 
-  // Full save logic, including all fields
   const handleSave = async () => {
     setApiError('');
     setError('');
@@ -169,6 +162,7 @@ function AddItemModal({
         const res = await axios.post('/categories', { name: selectedCategory.label.trim() });
         catId = res.data.id;
         setSelectedCategory({ value: catId, label: res.data.name });
+        if (typeof refreshMasterData === 'function') refreshMasterData();
       }
 
       let locId = getIdFromSelect(selectedLocation, locations);
@@ -176,6 +170,7 @@ function AddItemModal({
         const res = await axios.post('/locations', { name: selectedLocation.label.trim() });
         locId = res.data.id;
         setSelectedLocation({ value: locId, label: res.data.name });
+        if (typeof refreshMasterData === 'function') refreshMasterData();
       }
 
       let storeId = getIdFromSelect(selectedStore, stores);
@@ -183,6 +178,7 @@ function AddItemModal({
         const res = await axios.post('/stores', { name: selectedStore.label.trim() });
         storeId = res.data.id;
         setSelectedStore({ value: storeId, label: res.data.name });
+        if (typeof refreshMasterData === 'function') refreshMasterData();
       }
 
       let unitId = getIdFromSelect(selectedUnit, units);
@@ -190,6 +186,7 @@ function AddItemModal({
         const res = await axios.post('/units', { name: selectedUnit.label.trim() });
         unitId = res.data.id;
         setSelectedUnit({ value: unitId, label: res.data.name });
+        if (typeof refreshMasterData === 'function') refreshMasterData();
       }
 
       let productId;
@@ -199,15 +196,22 @@ function AddItemModal({
           categoryId: catId,
           defaultLocationId: locId,
           defaultUnitTypeId: unitId,
-          inventoryBehavior: inventoryBehavior,
+          inventoryBehavior: Number(inventoryBehavior),
         });
         productId = productRes.data.id;
         setSelectedProduct({ value: productRes.data.id, label: productRes.data.name });
+        if (typeof refreshMasterData === 'function') refreshMasterData();
       } else {
         productId = getIdFromSelect(selectedProduct, products);
-        // Optionally update inventory behavior if changed
         if (productId) {
-          await axios.put(`/products/${productId}`, { inventoryBehavior });
+          await axios.put(`/products/${productId}`, {
+            inventoryBehavior: Number(inventoryBehavior),
+            name: selectedProduct.label.trim(),
+            categoryId: catId,
+            defaultLocationId: locId,
+            defaultUnitTypeId: unitId,
+          });
+          if (typeof refreshMasterData === 'function') refreshMasterData();
         }
       }
 

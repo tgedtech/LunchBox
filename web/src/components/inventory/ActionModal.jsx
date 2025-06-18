@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import axios from '../../utils/axiosInstance';
 
+/**
+ * ActionModal is used for "Open" and "Remove" actions on inventory items.
+ * - For Category 1: always "Open" (decrements count or removes row).
+ * - For Category 2: "Open" if not already opened; "Remove" if already opened (must remove before opening another).
+ */
 function ActionModal({
   isOpen,
   onClose,
@@ -12,7 +17,7 @@ function ActionModal({
   isExpired = false,
   askAddToList = false,
   afterAction,
-  updateInventoryItems, // <-- new: callback to update UI instantly
+  updateInventoryItems,
 }) {
   const [quantity, setQuantity] = useState(1);
   const [addToList, setAddToList] = useState(false);
@@ -29,37 +34,44 @@ function ActionModal({
 
   if (!isOpen) return null;
 
+  // Prompt logic: switch to "Remove" if already opened (Category 2)
   let prompt;
   if (actionType === 'open') {
-    prompt = `Open/use item${maxQuantity > 1 ? 's' : ''}`;
+    if (item.product?.inventoryBehavior === 2 && item.opened) {
+      prompt = 'Remove from inventory';
+    } else {
+      prompt = `Open/use item${maxQuantity > 1 ? 's' : ''}`;
+    }
   } else if (actionType === 'remove') {
     prompt = `Remove from inventory`;
   } else if (actionType === 'addToList') {
     prompt = `Add to shopping list`;
   }
 
+  // Handle the backend update per the Category logic
   const handleBackendUpdate = async () => {
     setLoading(true);
     setError('');
     try {
       let updatedItems = null;
-      if (actionType === 'open') {
+      // Category 2 "Remove": treat as split with openQuantity=1 on an opened item
+      if (actionType === 'open' && item.product?.inventoryBehavior === 2 && item.opened) {
+        const res = await axios.put(`/inventory/${item.id}/split`, { openQuantity: 1 });
+        updatedItems = res.data;
+      } else if (actionType === 'open') {
+        // Normal open for unopened (Category 1/2)
         if (quantity >= item.quantity) {
-          // Delete item
           await axios.delete(`/inventory/${item.id}`);
-          updatedItems = []; // item removed
+          updatedItems = [];
         } else {
-          // Use split route, get updated items (opened, and maybe remaining)
-          const res = await axios.put(`/inventory/${item.id}/split`, {
-            openQuantity: quantity,
-          });
+          const res = await axios.put(`/inventory/${item.id}/split`, { openQuantity: quantity });
           updatedItems = res.data;
         }
       } else if (actionType === 'remove') {
+        // Explicit remove: used for expired, etc.
         await axios.delete(`/inventory/${item.id}`);
         updatedItems = [];
       }
-      // Pass new items to parent, if callback given (UI instant update)
       if (updateInventoryItems && typeof updateInventoryItems === 'function') {
         updateInventoryItems(item, updatedItems || []);
       }
@@ -72,6 +84,11 @@ function ActionModal({
       setLoading(false);
     }
   };
+
+  // Show "how many?" for open (if unopened, >1), but never for opened "Remove"
+  const showHowMany =
+    (actionType === 'open' && maxQuantity > 1 && !(item.product?.inventoryBehavior === 2 && item.opened)) ||
+    (actionType === 'remove' && maxQuantity > 1);
 
   return (
     <div className="modal modal-open" aria-modal="true" tabIndex={0}>
@@ -86,7 +103,7 @@ function ActionModal({
               <span className="ml-2 text-base-content/70">(${item.price.toFixed(2)})</span>
             ) : null}
           </div>
-          {(actionType === 'open' || actionType === 'remove') && maxQuantity > 1 && (
+          {showHowMany && (
             <div>
               <label className="block font-quicksand mb-1">
                 How many?

@@ -7,6 +7,9 @@ import AddItemModal from '../components/inventory/AddItemModal';
 import ActionModal from '../components/inventory/ActionModal';
 import axios from '../utils/axiosInstance';
 
+/**
+ * CATEGORY_LABELS maps backend behavior numbers to readable strings.
+ */
 const CATEGORY_LABELS = {
   1: "Consumed when opened",
   2: "Long lasting after open",
@@ -40,6 +43,7 @@ function Inventory() {
     askAddToList: false,
   });
 
+  // Fetch all inventory and master data on mount
   const fetchInventory = async () => {
     try {
       const res = await axios.get('/inventory');
@@ -73,6 +77,9 @@ function Inventory() {
     fetchMasterData();
   }, []);
 
+  /**
+   * Opens the ActionModal for a given item and action type.
+   */
   const openActionModal = (type, item, options = {}) => {
     setActionModal({
       open: true,
@@ -84,6 +91,9 @@ function Inventory() {
     });
   };
 
+  /**
+   * Closes the ActionModal.
+   */
   const closeActionModal = () =>
     setActionModal({
       open: false,
@@ -94,67 +104,13 @@ function Inventory() {
       askAddToList: false,
     });
 
-  const filterInventory = (items) => {
-    return items
-      .filter((item) => {
-        const matchesSearch = item.product?.name
-          .toLowerCase()
-          .includes(filters.search.toLowerCase());
-
-        const matchesLocation =
-          !filters.location || item.location?.name === filters.location;
-
-        const matchesCategory =
-          !filters.category || item.product?.category?.name === filters.category;
-
-        const now = new Date();
-        const expDate = item.expiration ? new Date(item.expiration) : null;
-
-        let matchesExpiration = true;
-        if (filters.expiration === 'Expired') {
-          matchesExpiration = expDate && expDate < now;
-        } else if (filters.expiration === 'Expiring Soon') {
-          const soon = new Date();
-          soon.setDate(soon.getDate() + 7);
-          matchesExpiration = expDate && expDate >= now && expDate <= soon;
-        } else if (filters.expiration === 'Valid') {
-          matchesExpiration = !expDate || expDate > now;
-        }
-
-        return (
-          matchesSearch &&
-          matchesLocation &&
-          matchesCategory &&
-          matchesExpiration
-        );
-      })
-      .sort((a, b) => {
-        if (filters.sortBy === 'Name') {
-          return a.product?.name.localeCompare(b.product?.name);
-        }
-        if (filters.sortBy === 'Quantity') {
-          return b.quantity - a.quantity;
-        }
-        if (filters.sortBy === 'Expiration') {
-          const aExp = a.expiration ? new Date(a.expiration) : new Date(9999, 11, 31);
-          const bExp = b.expiration ? new Date(b.expiration) : new Date(9999, 11, 31);
-          return aExp - bExp;
-        }
-        if (filters.sortBy === 'Price') {
-          return (b.price || 0) - (a.price || 0);
-        }
-        return 0;
-      });
-  };
-
-  // [C] Update inventory immediately after backend open/remove
+  /**
+   * Local UI update after any action.
+   */
   const updateInventoryItems = (originalItem, updatedArray) => {
     setInventoryItems(prev => {
-      // Remove the original item from inventory
       let newItems = prev.filter(item => item.id !== originalItem.id);
-      // Add in new items from backend (e.g. the opened part)
       if (Array.isArray(updatedArray)) {
-        // Remove any duplicate IDs
         const ids = new Set(newItems.map(i => i.id));
         updatedArray.forEach(item => {
           if (item && !ids.has(item.id)) newItems.push(item);
@@ -165,56 +121,210 @@ function Inventory() {
   };
 
   const handleActionConfirm = async ({ quantity, addToList }) => {
-    // intentionally empty, the updateInventoryItems handles UI immediately
     closeActionModal();
-    fetchInventory(); // in background, so we always re-sync eventually
+    fetchInventory();
   };
 
+  /**
+   * Groups inventory items for Category 2 (long-lasting) by product/location/unit/store.
+   * Returns:
+   *   - unopened (quantity, item)
+   *   - opened (item)
+   */
+  function groupCat2(items) {
+    // Key: productId-locationId-unit-storeId (null store OK)
+    const groups = {};
+    items.forEach(item => {
+      if (item.product?.inventoryBehavior !== 2) return;
+      const key = [item.productId, item.locationId, item.unit, item.storeId || ''].join('-');
+      if (!groups[key]) groups[key] = { unopened: null, opened: null };
+      if (item.opened) {
+        groups[key].opened = item;
+      } else {
+        groups[key].unopened = item;
+      }
+    });
+    return groups;
+  }
+
+  /**
+   * For display: merges Category 2 opened/unopened as single logical rows
+   * For others: returns as-is
+   */
+  function mergedInventoryRows(items) {
+    const cat2Groups = groupCat2(items);
+    const handled = new Set();
+    const rows = [];
+
+    items.forEach(item => {
+      if (item.product?.inventoryBehavior !== 2) {
+        rows.push(item);
+      } else {
+        // Only display one row per group
+        const key = [item.productId, item.locationId, item.unit, item.storeId || ''].join('-');
+        if (handled.has(key)) return;
+        const group = cat2Groups[key];
+        if (!group.unopened && group.opened) {
+          // Only opened left
+          rows.push(group.opened);
+        } else if (group.unopened && !group.opened) {
+          // Only unopened left
+          rows.push(group.unopened);
+        } else if (group.unopened && group.opened) {
+          // Both exist: merge into a single row object for rendering
+          rows.push({
+            ...group.unopened,
+            // Attach both for rendering: don't duplicate
+            _unopened: group.unopened,
+            _opened: group.opened,
+            mergedCat2: true,
+          });
+        }
+        handled.add(key);
+      }
+    });
+
+    return rows;
+  }
+
+  /**
+   * Table row actions.
+   * Category 2 (long-lasting): 
+   *   - "Open" if unopened and not already open
+   *   - "Remove" if opened
+   *   - If both exist (merged row), "Remove" acts on opened, cannot "Open" another until opened is removed.
+   * Category 1: always "Open" (and remove when 0 left)
+   */
   const renderActions = (item) => {
-    const categoryType = item.product?.inventoryBehavior || 1;
-    if (!item.opened) {
-      return (
-        <div className="flex space-x-2">
-          <button
-            className="btn btn-xs btn-primary tooltip"
-            data-tip="Open/Use"
-            onClick={() => openActionModal('open', item)}
-          >
-            <OpenIcon className="w-4 h-4" />
-          </button>
-          <button
-            className="btn btn-xs btn-accent tooltip"
-            data-tip="Add to Shopping List"
-            onClick={() => openActionModal('addToList', item)}
-          >
-            <CartIcon className="w-4 h-4" />
-          </button>
-        </div>
-      );
-    }
-    if (categoryType === 2 || categoryType === 3) {
-      return (
-        <div className="flex space-x-2">
-          <button
-            className="btn btn-xs btn-error tooltip"
-            data-tip="Remove from Inventory"
-            onClick={() => openActionModal('remove', item)}
-          >
-            <RemoveIcon className="w-4 h-4" />
-          </button>
-          <button
-            className="btn btn-xs btn-accent tooltip"
-            data-tip="Add to Shopping List"
-            onClick={() => openActionModal('addToList', item)}
-          >
-            <CartIcon className="w-4 h-4" />
-          </button>
-        </div>
-      );
-    }
-    return null;
-  };
+  const categoryType = item.product?.inventoryBehavior || 1;
 
+  // CATEGORY 2: merged row = opened+unopened, only REMOVE
+  if (item.mergedCat2) {
+    return (
+      <div className="flex gap-2">
+        <button
+          className="btn btn-sm btn-primary font-nunito-sans text-primary-content"
+          onClick={() => openActionModal('open', item._opened)}
+        >
+          Remove
+        </button>
+        <button
+          className="btn btn-sm btn-success font-nunito-sans text-success-content"
+          onClick={() => openActionModal('addToList', item._opened)}
+        >
+          Add to Shopping List
+        </button>
+      </div>
+    );
+  }
+  // CATEGORY 2: unopened
+  if (categoryType === 2 && !item.opened) {
+    return (
+      <div className="flex gap-2">
+        <button
+          className="btn btn-sm btn-primary font-nunito-sans text-primary-content"
+          onClick={() => openActionModal('open', item)}
+        >
+          Open
+        </button>
+        <button
+          className="btn btn-sm btn-success font-nunito-sans text-success-content"
+          onClick={() => openActionModal('addToList', item)}
+        >
+          Add to Shopping List
+        </button>
+      </div>
+    );
+  }
+  // CATEGORY 2: opened only (no unopened left)
+  if (categoryType === 2 && item.opened) {
+    // If expired: use error, warning, etc. class
+    let btnClass = "btn btn-sm btn-primary font-nunito-sans text-primary-content";
+    if (item.expiration && new Date(item.expiration) < new Date()) {
+      btnClass = "btn btn-sm btn-error font-nunito-sans text-error-content";
+    } else if (item.expiration && new Date(item.expiration) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) {
+      btnClass = "btn btn-sm btn-warning font-nunito-sans text-warning-content";
+    }
+    return (
+      <div className="flex gap-2">
+        <button
+          className={btnClass}
+          onClick={() => openActionModal('open', item)}
+        >
+          Remove
+        </button>
+        <button
+          className="btn btn-sm btn-success font-nunito-sans text-success-content"
+          onClick={() => openActionModal('addToList', item)}
+        >
+          Add to Shopping List
+        </button>
+      </div>
+    );
+  }
+  // CATEGORY 1/3 (normal)
+  if (!item.opened) {
+    return (
+      <div className="flex gap-2">
+        <button
+          className="btn btn-sm btn-primary font-nunito-sans text-primary-content"
+          onClick={() => openActionModal('open', item)}
+        >
+          Open
+        </button>
+        <button
+          className="btn btn-sm btn-success font-nunito-sans text-success-content"
+          onClick={() => openActionModal('addToList', item)}
+        >
+          Add to Shopping List
+        </button>
+      </div>
+    );
+  }
+  // Opened, not category 2
+  return (
+    <div className="flex gap-2">
+      <button
+        className="btn btn-sm btn-error font-nunito-sans text-error-content"
+        onClick={() => openActionModal('remove', item)}
+      >
+        Remove from Inventory
+      </button>
+      <button
+        className="btn btn-sm btn-success font-nunito-sans text-success-content"
+        onClick={() => openActionModal('addToList', item)}
+      >
+        Add to Shopping List
+      </button>
+    </div>
+  );
+};
+
+  /**
+   * Renders quantity column, e.g. "2 bottles | 1 open"
+   */
+  function renderQuantityCell(item) {
+    // Category 2, merged row
+    if (item.mergedCat2) {
+      const unopened = item._unopened?.quantity || 0;
+      const opened = item._opened?.quantity || 0;
+      return `${unopened} ${item.unit}${unopened !== 1 ? 's' : ''} | ${opened} open`;
+    }
+    // Category 2, only unopened
+    if (item.product?.inventoryBehavior === 2 && !item.opened) {
+      return `${item.quantity} ${item.unit}${item.quantity !== 1 ? 's' : ''}`;
+    }
+    // Category 2, only opened
+    if (item.product?.inventoryBehavior === 2 && item.opened) {
+      return `${item.quantity} ${item.unit}${item.quantity !== 1 ? 's' : ''} | ${item.quantity} open`;
+    }
+    // Others: as previously
+    return `${item.quantity}`;
+  }
+
+  /**
+   * Renders each inventory table row.
+   */
   return (
     <div className="p-4 pb-24">
       <InventoryHeader
@@ -246,20 +356,15 @@ function Inventory() {
             </tr>
           </thead>
           <tbody>
-            {filterInventory(inventoryItems).map((item) => {
+            {mergedInventoryRows(inventoryItems).map((item) => {
               const isExpiring =
                 item.expiration && new Date(item.expiration) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) &&
                 new Date(item.expiration) > new Date();
               const isExpired = item.expiration && new Date(item.expiration) < new Date();
 
-              let quantityCell = `${item.quantity}`;
-              if (item.opened && (item.product?.inventoryBehavior === 2 || item.product?.inventoryBehavior === 3)) {
-                quantityCell += ` | open`;
-              }
-
               return (
                 <tr
-                  key={item.id}
+                  key={item.id + (item.mergedCat2 ? '_cat2' : '')}
                   className={
                     isExpired
                       ? "bg-error/20 text-error"
@@ -270,7 +375,7 @@ function Inventory() {
                 >
                   <td>{renderActions(item)}</td>
                   <td>{item.product?.name}</td>
-                  <td>{quantityCell}</td>
+                  <td>{renderQuantityCell(item)}</td>
                   <td>{item.unit}</td>
                   <td>{item.location?.name}</td>
                   <td>{item.product?.category?.name || 'Uncategorized'}</td>
@@ -312,6 +417,7 @@ function Inventory() {
         locations={locations}
         stores={stores}
         units={units}
+        refreshMasterData={fetchMasterData}
       />
 
       {/* Universal Action Modal */}
@@ -324,7 +430,7 @@ function Inventory() {
         onConfirm={handleActionConfirm}
         isExpired={actionModal.isExpired}
         askAddToList={actionModal.askAddToList}
-        updateInventoryItems={updateInventoryItems} // << KEY CHANGE
+        updateInventoryItems={updateInventoryItems}
       />
     </div>
   );
