@@ -5,6 +5,9 @@ import authMiddleware from '../middleware/auth.js';
 const prisma = new PrismaClient();
 const router = express.Router();
 
+/**
+ * Helper: parse a boolean from query params
+ */
 function parseBool(val) {
   if (typeof val === 'string') return val === 'true';
   return !!val;
@@ -13,6 +16,7 @@ function parseBool(val) {
 /**
  * GET /inventory
  * Returns all inventory items for the current user.
+ * Supports ?expired=true or ?expiringSoon=true for filtering.
  */
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -47,57 +51,28 @@ router.get('/', authMiddleware, async (req, res) => {
 
 /**
  * POST /inventory
- * Create or increment an inventory item (unopened only).
+ * Always creates a new inventory item record (no merging/aggregation).
+ * Allows multiple lots/instances per product-location-unit-store.
  */
 router.post('/', authMiddleware, async (req, res) => {
   const { productId, locationId, quantity, unit, expiration, opened, price, storeId } = req.body;
 
   try {
-    const existing = await prisma.inventoryItem.findFirst({
-      where: {
-        userId: req.userId,
+    // Create a new inventory instance (never merge!)
+    const item = await prisma.inventoryItem.create({
+      data: {
         productId,
         locationId,
+        quantity,
         unit,
+        expiration: expiration ? new Date(expiration) : null,
+        opened: opened || false,
+        price: price !== undefined ? parseFloat(price) : null,
         storeId: storeId || null,
-        opened: false,
+        userId: req.userId,
       },
     });
-
-    if (existing) {
-      const newQuantity = Number(existing.quantity) + Number(quantity);
-      let newExpiration = existing.expiration;
-      if (expiration) {
-        const newExpDate = new Date(expiration);
-        if (!newExpiration || newExpDate < newExpiration) {
-          newExpiration = newExpDate;
-        }
-      }
-
-      const updated = await prisma.inventoryItem.update({
-        where: { id: existing.id },
-        data: {
-          quantity: newQuantity,
-          expiration: newExpiration,
-        },
-      });
-      return res.status(200).json(updated);
-    } else {
-      const item = await prisma.inventoryItem.create({
-        data: {
-          productId,
-          locationId,
-          quantity,
-          unit,
-          expiration: expiration ? new Date(expiration) : null,
-          opened: opened || false,
-          price: price !== undefined ? parseFloat(price) : null,
-          storeId: storeId || null,
-          userId: req.userId,
-        },
-      });
-      return res.status(201).json(item);
-    }
+    return res.status(201).json(item);
   } catch (err) {
     console.error('Error creating inventory item:', err);
     res.status(500).json({ error: 'Failed to create inventory item' });
@@ -106,68 +81,46 @@ router.post('/', authMiddleware, async (req, res) => {
 
 /**
  * PUT /inventory/:id
- * Update an inventory item.
+ * Update an inventory item by ID. (Note: Not used for merging. Only for direct updates.)
  */
 router.put('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const {
-    name,
-    description,
-    defaultQuantity,
-    defaultUnit,
-    categoryId,
-    defaultLocationId,
-    defaultUnitTypeId,
-    inventoryBehavior,
+    quantity, unit, expiration, opened, price, storeId, locationId,
   } = req.body;
 
   try {
-    const data = {
-      name,
-      description,
-      defaultQuantity,
-      defaultUnit,
-      category: categoryId
-        ? { connect: { id: categoryId } }
-        : { disconnect: true },
-      defaultLocation: defaultLocationId
-        ? { connect: { id: defaultLocationId } }
-        : { disconnect: true },
-      defaultUnitType: defaultUnitTypeId
-        ? { connect: { id: defaultUnitTypeId } }
-        : { disconnect: true },
-      ...(inventoryBehavior && { inventoryBehavior: Number(inventoryBehavior) }),
-    };
-
-    const product = await prisma.product.update({
+    // Only update allowed fields for the inventory item
+    const updated = await prisma.inventoryItem.update({
       where: { id },
-      data,
-      include: {
-        category: true,
-        defaultLocation: true,
-        defaultUnitType: true,
+      data: {
+        ...(quantity !== undefined ? { quantity: Number(quantity) } : {}),
+        ...(unit !== undefined ? { unit } : {}),
+        ...(expiration !== undefined ? { expiration: expiration ? new Date(expiration) : null } : {}),
+        ...(opened !== undefined ? { opened: !!opened } : {}),
+        ...(price !== undefined ? { price: price !== null ? parseFloat(price) : null } : {}),
+        ...(storeId !== undefined ? { storeId: storeId || null } : {}),
+        ...(locationId !== undefined ? { locationId } : {}),
       },
     });
-    res.json(product);
+    res.json(updated);
   } catch (err) {
-    console.error('Error updating product:', err);
-    res.status(500).json({ error: 'Failed to update product' });
+    console.error('Error updating inventory item:', err);
+    res.status(500).json({ error: 'Failed to update inventory item' });
   }
 });
 
 /**
  * DELETE /inventory/:id
- * Remove an inventory item.
+ * Remove an inventory item by ID.
  */
 router.delete('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
-
   try {
     const existing = await prisma.inventoryItem.findUnique({ where: { id } });
     if (!existing || existing.userId !== req.userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
-
     await prisma.inventoryItem.delete({ where: { id } });
     res.json({ message: 'Inventory item deleted' });
   } catch (err) {
@@ -178,7 +131,9 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
 /**
  * PUT /inventory/:id/split
- * Category 1, 2, 3 (open/use an item, or for Cat2/3: remove opened)
+ * Category 1, 2, 3 (open/use or remove open instance for Cat2/3)
+ * - For Cat 1: consumes quantity or deletes row if empty
+ * - For Cat 2/3: opens a new instance, or removes open instance
  */
 router.put('/:id/split', authMiddleware, async (req, res) => {
   const { id } = req.params;
@@ -203,8 +158,8 @@ router.put('/:id/split', authMiddleware, async (req, res) => {
 
     const inventoryBehavior = existing.product?.inventoryBehavior || 1;
 
-    // CATEGORY 1 (Remove from Inventory Once Open)
     if (inventoryBehavior === 1) {
+      // Category 1: decrement or delete
       const remaining = existing.quantity - openQuantity;
       if (remaining > 0) {
         const updated = await prisma.inventoryItem.update({
@@ -218,10 +173,10 @@ router.put('/:id/split', authMiddleware, async (req, res) => {
       }
     }
 
-    // CATEGORY 2 & 3 (Keeps for a Long Time Once Open or Goes Bad Once Open)
     if (inventoryBehavior === 2 || inventoryBehavior === 3) {
+      // Only open if not already opened
       if (!existing.opened) {
-        // Only one opened at a time
+        // Prevent double-open of same lot
         const alreadyOpened = await prisma.inventoryItem.findFirst({
           where: {
             userId: req.userId,
@@ -236,7 +191,7 @@ router.put('/:id/split', authMiddleware, async (req, res) => {
           return res.status(400).json({ error: 'An open unit already exists. Finish it before opening another.' });
         }
 
-        // For Cat 3, expiration is always tracked
+        // Open 1 unit (always 1), decrement unopened lot
         const expirationToUse = (inventoryBehavior === 3 && existing.expiration)
           ? existing.expiration
           : existing.expiration;
@@ -261,6 +216,7 @@ router.put('/:id/split', authMiddleware, async (req, res) => {
         if (updated.quantity <= 0) {
           await prisma.inventoryItem.delete({ where: { id } });
         }
+        // Return latest state for this product/location/unit/store
         const items = await prisma.inventoryItem.findMany({
           where: {
             userId: req.userId,
@@ -277,7 +233,7 @@ router.put('/:id/split', authMiddleware, async (req, res) => {
         });
         return res.json(items);
       } else {
-        // Remove/Finish the open unit
+        // Removing an open instance (i.e. consume/dispose open unit)
         await prisma.inventoryItem.delete({ where: { id } });
         const items = await prisma.inventoryItem.findMany({
           where: {
@@ -297,7 +253,6 @@ router.put('/:id/split', authMiddleware, async (req, res) => {
       }
     }
 
-    // Fallback for unsupported types
     return res.status(400).json({ error: 'Unsupported inventory behavior' });
 
   } catch (err) {
