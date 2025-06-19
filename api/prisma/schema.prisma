@@ -15,7 +15,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  inventoryItems InventoryItem[]
+  inventoryItems      InventoryItem[]
+  shoppingListItems   ShoppingListItem[]
+  shoppingListHistory ShoppingListItemHistory[]
 }
 
 model ProductCategory {
@@ -55,6 +57,7 @@ model Product {
 
   inventoryBehavior Int             @default(1)
   inventoryItems    InventoryItem[]
+  shoppingListItems ShoppingListItem[]
 }
 
 model InventoryItem {
@@ -85,4 +88,56 @@ model Store {
   name String @unique
 
   inventoryItems InventoryItem[]
+  shoppingListItems ShoppingListItem[]
+}
+
+// === SHOPPING LIST MODELS BELOW ===
+
+model ShoppingListItem {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+
+  // If linked to a product, reference it. If ad hoc, leave null and use name/unit/category.
+  product     Product?   @relation(fields: [productId], references: [id])
+  productId   String?
+
+  // These fields are used for ad hoc items and to allow custom user names/units.
+  name        String?
+  category    String?
+  unit        String?
+  quantity    Float     @default(1)
+  price       Float?
+  store       Store?    @relation(fields: [storeId], references: [id])
+  storeId     String?
+  vendorId    String?   // Placeholder for future vendor integration
+
+  notes       String?   // User can enter free-form notes
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // For future extensibility
+  shoppingListItemHistories ShoppingListItemHistory[]
+}
+
+model ShoppingListItemHistory {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+
+  // All fields are snapshot from the original ShoppingListItem
+  productId  String?
+  name       String?
+  category   String?
+  unit       String?
+  quantity   Float
+  price      Float?
+  storeId    String?
+  vendorId   String?
+  notes      String?
+  removedAt  DateTime @default(now())
+
+  // For auditing/future queries
+  shoppingListItem ShoppingListItem? @relation(fields: [shoppingListItemId], references: [id])
+  shoppingListItemId String?
 }
