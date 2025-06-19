@@ -4,7 +4,9 @@ import AddItemModal from '../components/inventory/AddItemModal';
 import ActionModal from '../components/inventory/ActionModal';
 import axios from '../utils/axiosInstance';
 
-// Utility: Group inventory items by product
+// === UTILS ===
+
+// Group inventory items by productId for the accordion/grouped view
 function groupByProduct(items) {
   const map = {};
   for (const item of items) {
@@ -15,7 +17,7 @@ function groupByProduct(items) {
   return map;
 }
 
-// Utility: For status/expiration
+// Calculate expiration status flags
 function getExpirationStatus(expDate) {
   if (!expDate) return { isExpired: false, isErrorWindow: false, isWarningWindow: false };
   const now = new Date();
@@ -28,13 +30,63 @@ function getExpirationStatus(expDate) {
   return { isExpired: false, isErrorWindow: false, isWarningWindow: false };
 }
 
-// Utility: DaisyUI remove button class based on expiration
+// DaisyUI button coloring for remove action
 function getRemoveBtnClass(item) {
   const { isExpired, isErrorWindow, isWarningWindow } = getExpirationStatus(item.expiration);
   if (isExpired || isErrorWindow) return "btn btn-xs btn-error";
   if (isWarningWindow) return "btn btn-xs btn-warning";
   return "btn btn-xs btn-primary";
 }
+
+// Get soonest expiration date among array of inventory items
+function getSoonestExpiration(items) {
+  const valid = items.map(i => i.expiration).filter(Boolean);
+  if (valid.length === 0) return null;
+  return valid.map(d => new Date(d)).sort((a, b) => a - b)[0];
+}
+
+// === FILTERING & SORTING LOGIC ===
+
+// Applies all filters from filter UI to the array of inventory items
+function applyFilters(items, filters) {
+  return items.filter(item => {
+    // Name search
+    if (filters.search && !item.product?.name?.toLowerCase().includes(filters.search.toLowerCase()))
+      return false;
+    // Location (exact match)
+    if (filters.location && item.location?.name !== filters.location)
+      return false;
+    // Category (exact match)
+    if (filters.category && item.product?.category?.name !== filters.category)
+      return false;
+    // Expiration logic
+    if (filters.expiration) {
+      const now = new Date();
+      const exp = item.expiration ? new Date(item.expiration) : null;
+      if (filters.expiration === "Expired" && (!exp || exp >= now)) return false;
+      if (filters.expiration === "Expiring Soon") {
+        if (!exp) return false;
+        const soon = new Date(now); soon.setDate(now.getDate() + 14);
+        if (!(exp >= now && exp <= soon)) return false;
+      }
+      if (filters.expiration === "Valid" && exp && exp < now) return false;
+    }
+    return true;
+  });
+}
+
+// Sorting by user-chosen column
+function applySort(items, sortBy) {
+  if (!sortBy) return items;
+  const sorted = [...items];
+  if (sortBy === "Name") sorted.sort((a, b) => (a.product?.name || "").localeCompare(b.product?.name || ""));
+  if (sortBy === "Quantity") sorted.sort((a, b) => (b.quantity - a.quantity));
+  if (sortBy === "Expiration") sorted.sort((a, b) => new Date(a.expiration || 0) - new Date(b.expiration || 0));
+  if (sortBy === "Price") sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
+  return sorted;
+}
+
+// === MAIN COMPONENT ===
 
 function Inventory() {
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -60,10 +112,9 @@ function Inventory() {
     isExpired: false,
     askAddToList: false,
   });
-
-  // Tracks which productIds are expanded
   const [expandedProducts, setExpandedProducts] = useState({});
 
+  // Fetch inventory & master data on mount
   const fetchInventory = async () => {
     try {
       const res = await axios.get('/inventory');
@@ -97,7 +148,7 @@ function Inventory() {
     fetchMasterData();
   }, []);
 
-  // Expand/collapse handler
+  // Accordion logic for product groups
   const toggleExpand = (productId) => {
     setExpandedProducts((prev) => ({
       ...prev,
@@ -105,7 +156,7 @@ function Inventory() {
     }));
   };
 
-  // ActionModal helpers
+  // Action modal open/close
   const openActionModal = (type, item, options = {}) => {
     setActionModal({
       open: true,
@@ -129,15 +180,15 @@ function Inventory() {
     fetchInventory();
   };
 
-  // Group items by product
-  const productGroups = groupByProduct(inventoryItems);
+  // === FILTERING & GROUPING ===
+  const filtered = applySort(applyFilters(inventoryItems, filters), filters.sortBy);
+  const productGroups = groupByProduct(filtered);
 
-  // --- UI Render ---
   return (
     <div className="p-4 pb-24">
       <InventoryHeader
         onAdd={() => setShowModal(true)}
-        itemCount={inventoryItems.length}
+        itemCount={filtered.length}
         filters={filters}
         setFilters={setFilters}
         locations={locations.map(l => l.name)}
@@ -148,25 +199,34 @@ function Inventory() {
 
       {/* Inventory Table - Grouped By Product */}
       <div className="overflow-x-auto rounded-lg shadow bg-base-100 font-nunito-sans">
-        <table className="table w-full table-zebra">
+        <table className="table w-full table-pin-rows">
+          <colgroup>
+            <col style={{ width: "4rem" }} />
+            <col style={{ width: "32%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "36%" }} />
+          </colgroup>
           <thead>
             <tr>
               <th></th>
               <th>Item Name</th>
               <th>Total Qty</th>
-              <th>Details</th>
+              <th>
+                {/* Keep column header consistent. Shows soonest exp date or "Details" */}
+                Details / Soonest Expiration
+              </th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(productGroups).map(([productId, instances]) => {
               const product = instances[0]?.product;
               const isExpanded = expandedProducts[productId];
-              // Aggregate info
               const totalQty = instances.reduce((sum, i) => sum + (i.quantity || 0), 0);
               const expiringSoon = instances.some(i => getExpirationStatus(i.expiration).isWarningWindow);
               const hasExpired = instances.some(i => getExpirationStatus(i.expiration).isExpired);
 
-              // Summary row
+              const soonestExp = getSoonestExpiration(instances);
+
               return (
                 <React.Fragment key={productId}>
                   <tr
@@ -174,26 +234,40 @@ function Inventory() {
                       hasExpired
                         ? "bg-error/20 text-error cursor-pointer"
                         : expiringSoon
-                        ? "bg-warning/20 text-warning cursor-pointer"
-                        : "cursor-pointer"
+                          ? "bg-warning/20 text-warning cursor-pointer"
+                          : "cursor-pointer"
                     }
                     onClick={() => toggleExpand(productId)}
                   >
                     <td>
-                      <span className="font-bold text-lg select-none">
+                      <span
+                        className="font-bold text-lg select-none"
+                        aria-label={isExpanded ? "Collapse" : "Expand"}
+                        tabIndex={0}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') toggleExpand(productId);
+                        }}
+                        role="button"
+                        aria-expanded={isExpanded}
+                      >
                         {isExpanded ? "▾" : "▸"}
                       </span>
                     </td>
-                    <td className="font-quicksand font-bold">
-                      {product?.name}
-                    </td>
-                    <td>
-                      {totalQty} {instances[0]?.unit}
-                    </td>
-                    <td>
-                      {instances.length} lot{instances.length > 1 ? "s" : ""}
+                    <td className="font-quicksand font-bold">{product?.name}</td>
+                    <td>{totalQty} {instances[0]?.unit}</td>
+                    {/* Details: when collapsed, show soonest expiration; expanded, column for lot breakdown */}
+                    <td className="align-middle">
+                      {!isExpanded ? (
+                        soonestExp
+                          ? <span>
+                            <span className="font-medium text-xs text-gray-600">Next Exp:</span>{' '}
+                            <span>{new Date(soonestExp).toLocaleDateString()}</span>
+                          </span>
+                          : <span className="text-xs text-gray-400">No Exp.</span>
+                      ) : null}
                     </td>
                   </tr>
+                  {/* Expanded: fixed 4-col layout, lots with details and actions */}
                   {isExpanded && (
                     <>
                       <tr className="bg-base-200 text-xs">
@@ -211,8 +285,8 @@ function Inventory() {
                               expStatus.isExpired
                                 ? "bg-error/10 text-error"
                                 : expStatus.isWarningWindow
-                                ? "bg-warning/10 text-warning"
-                                : ""
+                                  ? "bg-warning/10 text-warning"
+                                  : ""
                             }
                           >
                             <td></td>
@@ -225,41 +299,44 @@ function Inventory() {
                             <td>
                               {item.quantity} {item.unit}
                             </td>
-                            <td className="flex flex-wrap gap-2 items-center">
-                              <span className="text-xs">{item.store?.name || ""}</span>
-                              <span className="text-xs">
-                                {item.expiration
-                                  ? new Date(item.expiration).toLocaleDateString()
-                                  : <span className="text-gray-400">No Exp.</span>
-                                }
-                              </span>
-                              <span className="text-xs">
-                                {typeof item.price === 'number'
-                                  ? `$${item.price.toFixed(2)}`
-                                  : <span className="text-gray-400">No Price</span>
-                                }
-                              </span>
-                              {/* Actions */}
-                              <button
-                                className={getRemoveBtnClass(item)}
-                                onClick={e => { e.stopPropagation(); openActionModal('remove', item); }}
-                              >
-                                Remove
-                              </button>
-                              {!item.opened && (
+                            <td className="relative min-w-[250px]">
+                              <div className="pr-32 flex flex-wrap gap-2 items-center">
+                                <span className="text-xs">{item.store?.name || ""}</span>
+                                <span className="text-xs">
+                                  {item.expiration
+                                    ? new Date(item.expiration).toLocaleDateString()
+                                    : <span className="text-gray-400">No Exp.</span>
+                                  }
+                                </span>
+                                <span className="text-xs">
+                                  {typeof item.price === 'number'
+                                    ? `$${item.price.toFixed(2)}`
+                                    : <span className="text-gray-400">No Price</span>
+                                  }
+                                </span>
+                              </div>
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2 z-10">
                                 <button
-                                  className="btn btn-xs btn-primary"
-                                  onClick={e => { e.stopPropagation(); openActionModal('open', item); }}
+                                  className={getRemoveBtnClass(item)}
+                                  onClick={e => { e.stopPropagation(); openActionModal('remove', item); }}
                                 >
-                                  Open
+                                  Remove
                                 </button>
-                              )}
-                              <button
-                                className="btn btn-xs btn-success"
-                                onClick={e => { e.stopPropagation(); openActionModal('addToList', item); }}
-                              >
-                                Add to List
-                              </button>
+                                {!item.opened && (
+                                  <button
+                                    className="btn btn-xs btn-primary"
+                                    onClick={e => { e.stopPropagation(); openActionModal('open', item); }}
+                                  >
+                                    Open
+                                  </button>
+                                )}
+                                <button
+                                  className="btn btn-xs btn-success"
+                                  onClick={e => { e.stopPropagation(); openActionModal('addToList', item); }}
+                                >
+                                  Add to List
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -299,7 +376,7 @@ function Inventory() {
         onConfirm={handleActionConfirm}
         isExpired={actionModal.isExpired}
         askAddToList={actionModal.askAddToList}
-        updateInventoryItems={() => {}} // handled by fetchInventory for now
+        updateInventoryItems={() => { }}
       />
     </div>
   );
