@@ -76,6 +76,7 @@ function ActionModal({
       if (updateInventoryItems && typeof updateInventoryItems === 'function') {
         updateInventoryItems(item, updatedItems || []);
       }
+      console.log("MODAL CONFIRM", { quantity, addToList });
       onConfirm?.({ quantity, addToList });
       afterAction?.();
       onClose();

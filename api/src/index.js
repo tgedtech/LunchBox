@@ -9,6 +9,7 @@ import locationsRoutes from './routes/locations.js';
 import categoriesRoutes from './routes/categories.js';
 import storesRoutes from './routes/stores.js';
 import unitsRoutes from './routes/units.js';
+import shoppingListRoutes from './routes/shoppingList.js';
 
 dotenv.config();   // Load env variables first
 
@@ -24,7 +25,8 @@ app.use('/units', unitsRoutes);
 // Routes
 app.use('/auth', authRoutes);
 app.use('/me', meRoute);
-app.use('/inventory', inventoryRoutes);   // <-- Move here!
+app.use('/inventory', inventoryRoutes); 
+app.use('/shopping-list', shoppingListRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

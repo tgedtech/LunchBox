@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import InventoryHeader from '../components/InventoryHeader';
+import shoppingListService from '../services/shoppingListService';
 import AddItemModal from '../components/inventory/AddItemModal';
 import ActionModal from '../components/inventory/ActionModal';
 import axios from '../utils/axiosInstance';
@@ -175,7 +176,29 @@ function Inventory() {
     isExpired: false,
     askAddToList: false,
   });
-  const handleActionConfirm = async () => {
+  const handleActionConfirm = async (actionData) => {
+    // actionData: { quantity }
+    const { quantity = 1 } = actionData || {};
+    const { actionType, item } = actionModal;
+
+    // Always add to shopping list for 'addToList'
+    if (actionType === 'addToList' && item) {
+      try {
+        await shoppingListService.addItem({
+          productId: item.productId || item.product?.id,
+          name: item.product?.name || item.name,
+          quantity: quantity,
+          unit: item.unit || item.product?.defaultUnit || '',
+          categoryId: item.product?.categoryId || '', // map to string if needed
+          notes: '', // Optional: surface note field if needed
+          storeId: item.storeId || '', // add if relevant
+        });
+      } catch (err) {
+        console.error('Failed to add to shopping list:', err);
+        // You can surface an error/toast here if desired
+      }
+    }
+
     closeActionModal();
     fetchInventory();
   };
