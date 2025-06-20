@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import RemoveIcon from '../assets/icons/minus.rectangle.svg?react';
-import CartIcon from '../assets/icons/cart 1.svg?react';
 import ActionModal from '../components/inventory/ActionModal';
 import axios from '../utils/axiosInstance';
+import shoppingListService from '../services/shoppingListService';
 
 function ExpiredReportPage() {
   const [expiredItems, setExpiredItems] = useState([]);
-  // Always initialize modal as closed
   const [actionModal, setActionModal] = useState({
     open: false,
     actionType: null,
@@ -16,12 +14,18 @@ function ExpiredReportPage() {
     askAddToList: true,
   });
 
+  // Always filter expired only, regardless of backend endpoint.
   const fetchExpired = async () => {
     try {
-      const res = await axios.get('/inventory?expired=true');
-      setExpiredItems(res.data);
+      const res = await axios.get('/inventory');
+      // Filter to only expired items
+      const now = new Date();
+      const expired = res.data.filter(item =>
+        item.expiration && new Date(item.expiration) < now
+      );
+      setExpiredItems(expired);
     } catch (err) {
-      console.error('Error fetching expired inventory:', err);
+      console.error('Error fetching inventory:', err);
     }
   };
 
@@ -40,41 +44,53 @@ function ExpiredReportPage() {
     });
   };
 
-  // Always fully reset state, not just open: false
-  const closeActionModal = () =>
-    setActionModal({
-      open: false,
-      actionType: null,
-      item: null,
-      maxQuantity: 1,
-      isExpired: true,
-      askAddToList: true,
-    });
+  const closeActionModal = () => setActionModal({
+    open: false,
+    actionType: null,
+    item: null,
+    maxQuantity: 1,
+    isExpired: true,
+    askAddToList: true,
+  });
 
   const handleActionConfirm = async ({ quantity, addToList }) => {
-    const { actionType, item } = actionModal;
-    if (actionType === 'remove') {
-      if (addToList) {
-        console.log('Add to shopping list:', item.product?.name);
-      }
-      console.log('Remove expired item:', item.product?.name);
-    } else if (actionType === 'addToList') {
-      console.log('Add to shopping list:', item.product?.name);
+  const { actionType, item } = actionModal;
+
+  // If user confirmed addToList or clicked the addToList action:
+  if ((actionType === 'addToList') || (actionType === 'remove' && addToList)) {
+    try {
+      await shoppingListService.addItem({
+        productId: item.productId || item.product?.id,
+        name: item.product?.name || item.name,
+        quantity: quantity,
+        unit: item.unit || item.product?.defaultUnit || '',
+        categoryId: item.product?.categoryId || '',
+        notes: '', // Optionally map notes
+        storeId: item.storeId || '',
+      });
+      // Optionally: show a toast or similar confirmation here
+    } catch (err) {
+      // Optionally: handle API errors (toast, alert, etc.)
+      console.error('Failed to add expired item to shopping list:', err);
     }
-    closeActionModal();
-    fetchExpired();
-  };
+  }
+
+  closeActionModal();
+  fetchExpired();
+};
 
   return (
     <div className="p-4 pb-24">
       <h1 className="text-3xl font-quicksand font-black mb-4">Expired Inventory</h1>
       <div className="overflow-x-auto rounded-lg shadow bg-base-100 font-nunito-sans">
-        <table className="table table-zebra w-full">
+        <table className="table w-full table-pin-rows">
           <thead>
             <tr>
               <th>Actions</th>
               <th>Item Name</th>
-              <th>Quantity Expired</th>
+              <th>Quantity</th>
+              <th>Unit</th>
+              <th>Store</th>
               <th>Location</th>
               <th>Category</th>
               <th>Expired Date</th>
@@ -83,34 +99,34 @@ function ExpiredReportPage() {
           <tbody>
             {expiredItems.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-6">
-                  <span className="text-gray-500">No expired inventory.</span>
+                <td colSpan={8} className="text-center py-6 text-gray-500">
+                  No expired inventory.
                 </td>
               </tr>
             ) : (
               expiredItems.map(item => (
-                <tr key={item.id}>
+                <tr key={item.id} className="bg-error/10 text-error">
                   <td>
-                    <div className="flex space-x-2">
+                    <div className="flex gap-1">
                       <button
-                        className="btn btn-xs btn-error tooltip"
-                        data-tip="Remove from Inventory"
+                        className="btn btn-xs btn-error"
                         onClick={() => openActionModal('remove', item)}
                       >
-                        <RemoveIcon className="w-4 h-4" />
+                        Remove
                       </button>
                       <button
-                        className="btn btn-xs btn-accent tooltip"
-                        data-tip="Add to Shopping List"
+                        className="btn btn-xs btn-success"
                         onClick={() => openActionModal('addToList', item)}
                       >
-                        <CartIcon className="w-4 h-4" />
+                        Add to List
                       </button>
                     </div>
                   </td>
                   <td>{item.product?.name}</td>
-                  <td>{item.quantity} {item.unit}</td>
-                  <td>{item.location?.name}</td>
+                  <td>{item.quantity}</td>
+                  <td>{item.unit}</td>
+                  <td>{item.store?.name || ''}</td>
+                  <td>{item.location?.name || ''}</td>
                   <td>{item.product?.category?.name || 'Uncategorized'}</td>
                   <td>
                     {item.expiration
@@ -123,7 +139,6 @@ function ExpiredReportPage() {
           </tbody>
         </table>
       </div>
-      {/* Universal Action Modal */}
       <ActionModal
         isOpen={actionModal.open}
         onClose={closeActionModal}
