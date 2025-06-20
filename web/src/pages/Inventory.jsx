@@ -208,7 +208,7 @@ function Inventory() {
   const productGroups = groupByProduct(filtered);
 
   return (
-    <div className="p-4 pb-24">
+    <div className="w-full min-h-screen bg-base-100">
       <InventoryHeader
         onAdd={() => setShowModal(true)}
         itemCount={filtered.length}
@@ -221,7 +221,7 @@ function Inventory() {
       />
 
       {/* Inventory Table - Grouped By Product */}
-      <div className="overflow-x-auto rounded-lg shadow bg-base-100 font-nunito-sans">
+      <div className="p-4 pb-24">
         <table className="table w-full table-pin-rows">
           <colgroup>
             <col style={{ width: "4rem" }} />

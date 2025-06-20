@@ -21,7 +21,7 @@ function AppRoutes() {
 
   return (
     <>
-      <main className="p-4">
+      <main className="w-full min-h-screen bg-base-100">
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -116,7 +116,7 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <div data-theme="fieldstone" className="min-h-screen bg-neutral-content text-base-content">
+      <div data-theme="fieldstone" className="min-h-screen bg-base-100 text-base-content">
         <Router>
           <AppRoutes />
         </Router>

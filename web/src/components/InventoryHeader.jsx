@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import FilterIcon from '../assets/icons/filter.svg?react';
-import LogOutIcon from '../assets/icons/logout.svg?react';
 
 function InventoryHeader({
   onAdd,
@@ -24,57 +24,39 @@ function InventoryHeader({
     });
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   return (
-    <div className="mb-6 px-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-quicksand font-bold text-primary mb-1">
-            Inventory <span className="text-base-content text-base font-normal">({itemCount} items)</span>
-          </h1>
-        </div>
+    <header className="w-full bg-secondary text-secondary-content shadow-lg flex flex-col sticky top-0 z-30" style={{ minHeight: '88px' }}>
+      <div className="flex items-center justify-between px-8 py-4">
+        <h1 className="text-3xl font-quicksand font-bold">
+          Inventory <span className="text-base font-normal text-secondary-content">({itemCount} items)</span>
+        </h1>
         <div className="flex items-center space-x-2">
           <button
-            className="btn btn-sm btn-ghost text-base-content hover:text-primary flex items-center space-x-1"
+            className="btn btn-sm btn-soft btn-primary items-center space-x-1"
             onClick={() => setShowFilters(!showFilters)}
           >
-            <FilterIcon className="w-5 h-5 text-error" />
-            <span>Filters</span>
+            <FilterIcon className="w-5 h-5" />
+            <span className="font-nunito-sans font-bold">Filters</span>
           </button>
           {onAdd && (
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={onAdd}
-            >
+            <button className="btn btn-primary btn-sm" onClick={onAdd}>
               + Add Item
             </button>
           )}
-          <button
-            className="btn btn-sm btn-ghost text-base-content hover:text-primary flex items-center space-x-1"
-            onClick={handleLogout}
-          >
-            <LogOutIcon className="w-5 h-5 text-error" />
-            <span>Log Out</span>
-          </button>
         </div>
       </div>
-
       {showFilters && (
-        <div className="mt-4 p-4 bg-base-200 rounded-lg shadow space-y-3">
+        <div className="mt-0 p-4 bg-secondary-content shadow space-y-3 border-t border-secondary">
           <div className="flex flex-wrap gap-3">
             <input
               type="text"
               placeholder="Search by name"
-              className="input input-bordered input-sm w-48"
+              className="input input-bordered input-sm w-48 text-primary"
               value={filters.search}
               onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
             />
             <select
-              className="select select-bordered select-sm w-40"
+              className="select select-bordered select-sm w-40 text-primary"
               value={filters.location}
               onChange={(e) => setFilters((prev) => ({ ...prev, location: e.target.value }))}
             >
@@ -84,7 +66,7 @@ function InventoryHeader({
               ))}
             </select>
             <select
-              className="select select-bordered select-sm w-40"
+              className="select select-bordered select-sm w-40 text-primary"
               value={filters.category}
               onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))}
             >
@@ -94,7 +76,7 @@ function InventoryHeader({
               ))}
             </select>
             <select
-              className="select select-bordered select-sm w-40"
+              className="select select-bordered select-sm w-40 text-primary"
               value={filters.expiration}
               onChange={(e) => setFilters((prev) => ({ ...prev, expiration: e.target.value }))}
             >
@@ -104,7 +86,7 @@ function InventoryHeader({
               ))}
             </select>
             <select
-              className="select select-bordered select-sm w-40"
+              className="select select-bordered select-sm w-40 text-primary"
               value={filters.sortBy}
               onChange={(e) => setFilters((prev) => ({ ...prev, sortBy: e.target.value }))}
             >
@@ -114,10 +96,9 @@ function InventoryHeader({
               ))}
             </select>
           </div>
-
           <div className="text-right">
             <button
-              className="text-sm text-error hover:underline"
+              className="btn btn-sm btn-soft btn-secondary"
               onClick={clearFilters}
             >
               Clear Filters
@@ -125,8 +106,19 @@ function InventoryHeader({
           </div>
         </div>
       )}
-    </div>
+    </header>
   );
 }
+
+InventoryHeader.propTypes = {
+  onAdd: PropTypes.func,
+  itemCount: PropTypes.number.isRequired,
+  filters: PropTypes.object.isRequired,
+  setFilters: PropTypes.func.isRequired,
+  locations: PropTypes.array.isRequired,
+  categories: PropTypes.array.isRequired,
+  expirations: PropTypes.array.isRequired,
+  sortOptions: PropTypes.array.isRequired,
+};
 
 export default InventoryHeader;

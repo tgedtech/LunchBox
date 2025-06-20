@@ -1,187 +1,318 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import MasterDataHeader from '../components/MasterDataHeader';
-import useAuth from '../hooks/useAuth'; // Assumes you have this for user context
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import useAuth from '../hooks/useAuth';
 import axios from '../utils/axiosInstance';
 
+const DUMMY_SUBSCRIPTION = {
+  type: 'Yearly',
+  expiration: 'December 15, 2025',
+  lastPaymentDate: '12/14/2024',
+  lastPaymentAmount: '$25.00',
+  opened: 'June 15, 2023',
+  history: [
+    { purchase: '12/14/2024', effective: '12/15/2024', amount: '$25.00', status: 'Paid' },
+    { purchase: '12/14/2023', effective: '12/15/2023', amount: '$25.00', status: 'Paid' },
+    { purchase: '12/14/2022', effective: '12/15/2022', amount: '$25.00', status: 'Paid' },
+    { purchase: '12/13/2022', effective: '12/15/2022', amount: '$25.00', status: 'Failed' },
+  ],
+};
+
 function Settings() {
-  const { user, refreshUser } = useAuth(); // adapt as needed
-  const [showPwd, setShowPwd] = useState(false);
-  const [showEmail, setShowEmail] = useState(false);
+  const { logout, token } = useAuth();
+  const navigate = useNavigate();
 
-  // Change Password State
-  const [pwdCurrent, setPwdCurrent] = useState('');
-  const [pwdNew, setPwdNew] = useState('');
-  const [pwdConfirm, setPwdConfirm] = useState('');
-  const [pwdError, setPwdError] = useState('');
-  const [pwdSuccess, setPwdSuccess] = useState('');
+  const [user, setUser] = useState({ email: '', createdAt: '' });
+  const [emailInput, setEmailInput] = useState('');
+  const [emailStatus, setEmailStatus] = useState({ type: '', message: '' });
 
-  // Change Email State
-  const [emailNew, setEmailNew] = useState('');
-  const [emailPwd, setEmailPwd] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [emailSuccess, setEmailSuccess] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pwForm, setPwForm] = useState({
+    current: '',
+    new1: '',
+    new2: '',
+  });
+  const [pwStatus, setPwStatus] = useState({ type: '', message: '' });
+  const [pwLoading, setPwLoading] = useState(false);
 
-  // Password change handler
-  const handleChangePassword = async (e) => {
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await axios.get('/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setUser(res.data);
+        setEmailInput(res.data.email || '');
+      } catch {
+        setUser({ email: '', createdAt: '' });
+      }
+    }
+    fetchUser();
+  }, [token]);
+
+  const handleEmailUpdate = async (e) => {
     e.preventDefault();
-    setPwdError('');
-    setPwdSuccess('');
-    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
-      setPwdError('All fields are required.');
+    setEmailStatus({ type: '', message: '' });
+    if (!emailInput || !/\S+@\S+\.\S+/.test(emailInput)) {
+      setEmailStatus({ type: 'error', message: 'Please enter a valid email address.' });
       return;
     }
-    if (pwdNew !== pwdConfirm) {
-      setPwdError('New passwords do not match.');
-      return;
-    }
-    try {
-      await axios.post('/auth/change-password', {
-        oldPassword: pwdCurrent,
-        newPassword: pwdNew,
-      });
-      setPwdSuccess('Password updated.');
-      setPwdCurrent('');
-      setPwdNew('');
-      setPwdConfirm('');
-    } catch (err) {
-      setPwdError(err?.response?.data?.message || 'Failed to change password.');
-    }
+    setTimeout(() => {
+      setUser((u) => ({ ...u, email: emailInput }));
+      setEmailStatus({ type: 'success', message: 'Email updated (demo only).' });
+    }, 800);
   };
 
-  // Email change handler
-  const handleChangeEmail = async (e) => {
+  const openPasswordModal = () => {
+    setShowPasswordModal(true);
+    setPwForm({ current: '', new1: '', new2: '' });
+    setPwStatus({ type: '', message: '' });
+  };
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setPwForm({ current: '', new1: '', new2: '' });
+    setPwStatus({ type: '', message: '' });
+    setPwLoading(false);
+  };
+
+  const handlePasswordChange = async (e) => {
     e.preventDefault();
-    setEmailError('');
-    setEmailSuccess('');
-    if (!emailNew || !emailPwd) {
-      setEmailError('All fields are required.');
+    setPwStatus({ type: '', message: '' });
+    if (!pwForm.current || !pwForm.new1 || !pwForm.new2) {
+      setPwStatus({ type: 'error', message: 'All fields are required.' });
       return;
     }
-    try {
-      await axios.post('/auth/change-email', {
-        newEmail: emailNew,
-        password: emailPwd,
-      });
-      setEmailSuccess('Email updated. Please verify your new address.');
-      setEmailNew('');
-      setEmailPwd('');
-      refreshUser?.(); // Optional, update user context
-    } catch (err) {
-      setEmailError(err?.response?.data?.message || 'Failed to change email.');
+    if (pwForm.new1 !== pwForm.new2) {
+      setPwStatus({ type: 'error', message: 'New passwords do not match.' });
+      return;
     }
+    if (pwForm.new1.length < 8) {
+      setPwStatus({ type: 'error', message: 'Password must be at least 8 characters.' });
+      return;
+    }
+    setPwLoading(true);
+    setTimeout(() => {
+      setPwStatus({ type: 'success', message: 'Password updated (demo only).' });
+      setPwLoading(false);
+      setTimeout(closePasswordModal, 1200);
+    }, 1100);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   return (
-    <div className="p-4 pb-24">
-      <MasterDataHeader title="Settings" />
+    <div className="min-h-screen bg-base-100 flex flex-col">
+      {/* Absolutely full-width, full-top header */}
+      <header className="fixed top-0 left-0 right-0 w-full bg-primary text-primary-content shadow-lg flex items-center justify-between px-8 z-30" style={{ minHeight: '88px' }}>
+        <h1 className="text-3xl font-quicksand font-bold">Settings</h1>
+        <button
+          className="btn btn-soft btn-sm btn-error flex items-center space-x-1"
+          onClick={handleLogout}
+        >
+          <span>Log Out</span>
+        </button>
+      </header>
 
-      <div className="space-y-4">
+      {/* Main content (padding top matches header height) */}
+      <div className="flex-1 pt-[100px] pb-24 w-full">
+        <div className="flex flex-col md:flex-row gap-6 w-full px-0">
+          {/* Left column */}
+          <div className="flex flex-col gap-4 w-full md:w-[36rem] max-w-full px-4 md:px-8">
+            {/* Account Information Card */}
+            <div className="card bg-neutral-content card-lg shadow-sm rounded-xl">
+              <div className="card-body">
+                <h2 className="card-title font-quicksand font-black">Account Information</h2>
+                <div className="pl-2">
+                  {/* Email Section */}
+                  <form onSubmit={handleEmailUpdate}>
+                    <fieldset>
+                      <legend className="font-quicksand text-sm">Change Email</legend>
+                      <div className="join">
+                        <input
+                          type="email"
+                          placeholder="Email"
+                          className="input validator w-full font-nunito-sans join-item rounded-none"
+                          required
+                          value={emailInput}
+                          onChange={e => setEmailInput(e.target.value)}
+                          autoComplete="email"
+                        />
+                        <button
+                          type="submit"
+                          className="btn btn-primary btn-soft font-nunito-sans font-bold join-item rounded-r-xl rounded-l-none"
+                          disabled={emailInput === user.email}
+                        >
+                          Update Email
+                        </button>
+                      </div>
+                    </fieldset>
+                    {emailStatus.message && (
+                      <div className={`alert py-1 mt-2 alert-${emailStatus.type}`}>
+                        <span>{emailStatus.message}</span>
+                      </div>
+                    )}
+                  </form>
+                  {/* Password Section */}
+                  <fieldset className="mt-3">
+                    <legend className="font-quicksand text-sm">Change Password</legend>
+                    <button
+                      className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl"
+                      onClick={openPasswordModal}
+                      type="button"
+                    >
+                      Update Password
+                    </button>
+                  </fieldset>
+                </div>
+              </div>
+            </div>
+            {/* Master Data Update Card */}
+            <div className="card bg-neutral-content card-lg shadow-sm rounded-xl">
+              <div className="card-body">
+                <h2 className="card-title font-quicksand font-black">Master Data Update</h2>
+                <div className="flex flex-col gap-3">
+                  <Link to="/settings/products" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                    Update Products
+                  </Link>
+                  <Link to="/settings/categories" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                    Update Categories
+                  </Link>
+                  <Link to="/settings/locations" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                    Update Locations
+                  </Link>
+                  <Link to="/settings/units" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                    Update Units
+                  </Link>
+                  <Link to="/settings/stores" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                    Update Stores
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
 
-        {/* Master Data Section */}
-        <div className="bg-base-100 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-bold mb-2">Master Data</h2>
-          <div className="flex flex-col space-y-2">
-            <Link to="/settings/products" className="link link-primary">Manage Products</Link>
-            <Link to="/settings/categories" className="link link-primary">Manage Categories</Link>
-            <Link to="/settings/locations" className="link link-primary">Manage Locations</Link>
-            <Link to="/settings/units" className="link link-primary">Manage Units</Link>
-            <Link to="/settings/stores" className="link link-primary">Manage Stores</Link>
+          {/* Right column */}
+          <div className="flex-1 min-w-[320px] px-4 md:px-8">
+            <div className="card bg-neutral-content card-lg shadow-sm">
+              <div className="card-body">
+                <h2 className="card-title font-quicksand font-black">Account Status</h2>
+                <div className="flex flex-col gap-4">
+                  <p className="font-nunito-sans">
+                    You opened your account on <b>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : DUMMY_SUBSCRIPTION.opened}</b>.
+                  </p>
+                  {/* Subscription Details */}
+                  <div className="stats bg-base-100 border-base-300 border">
+                    <div className="stat">
+                      <div className="stat-title font-quicksand">Subscription Type</div>
+                      <div className="stat-value font-nunito-sans text-3xl">{DUMMY_SUBSCRIPTION.type}</div>
+                      <div className="stat-actions">
+                        <button className="btn btn-primary rounded-box btn-xs" disabled>Change Subscription Type</button>
+                      </div>
+                    </div>
+                    <div className="stat">
+                      <div className="stat-title font-quicksand">Expiration Date</div>
+                      <div className="stat-value font-nunito-sans text-2xl">{DUMMY_SUBSCRIPTION.expiration}</div>
+                      <div className="stat-actions">
+                        <button className="btn btn-primary btn-soft rounded-box btn-xs" disabled>Extend Subscription</button>
+                        <button className="btn btn-primary btn-soft rounded-box btn-xs" disabled>Make Recurring</button>
+                      </div>
+                    </div>
+                    <div className="stat">
+                      <div className="stat-title font-quicksand">Last Payment Date</div>
+                      <div className="stat-value font-nunito-sans text-2xl">{DUMMY_SUBSCRIPTION.lastPaymentDate}</div>
+                      <div className="stat-desc">{DUMMY_SUBSCRIPTION.lastPaymentAmount}</div>
+                    </div>
+                  </div>
+                  {/* Payment History Table */}
+                  <table className="table table-pin-rows">
+                    <thead className="font-quicksand bg-primary-content text-primary">
+                      <tr>
+                        <th>Purchase Date</th>
+                        <th>Effective Date</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-nunito-sans">
+                      {DUMMY_SUBSCRIPTION.history.map((row, idx) => (
+                        <tr key={idx} className={row.status === 'Failed' ? 'bg-error-content' : (row.status === 'Paid' && idx === 0 ? 'bg-succ' : '')}>
+                          <td>{row.purchase}</td>
+                          <td>{row.effective}</td>
+                          <td>{row.amount}</td>
+                          <td className={row.status === 'Failed' ? 'text-error' : 'text-success'}>{row.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* User Settings Section */}
-        <div className="bg-base-100 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-bold mb-2">User Settings</h2>
-
-          {/* Show current email */}
-          <div className="mb-4">
-            <span className="font-bold">Current Email: </span>
-            <span>{user?.email || <span className="text-gray-400">Not set</span>}</span>
-          </div>
-
-          {/* Change Email Accordion */}
-          <details className="collapse mb-2" open={showEmail}>
-            <summary
-              className="collapse-title font-quicksand font-bold cursor-pointer"
-              onClick={() => setShowEmail(!showEmail)}
-            >
-              Change Email
-            </summary>
-            <div className="collapse-content">
-              <form className="space-y-2" onSubmit={handleChangeEmail}>
-                <input
-                  type="email"
-                  className="input input-bordered w-full"
-                  placeholder="New Email Address"
-                  value={emailNew}
-                  onChange={e => setEmailNew(e.target.value)}
-                  required
-                />
+        {/* Password Change Modal */}
+        {showPasswordModal && (
+          <div className="modal modal-open">
+            <div className="modal-box rounded-2xl max-w-sm border border-base-300">
+              <h2 className="text-lg font-quicksand font-black mb-2">Change Password</h2>
+              <form onSubmit={handlePasswordChange}>
+                <label className="label text-xs font-quicksand">Current Password</label>
                 <input
                   type="password"
-                  className="input input-bordered w-full"
-                  placeholder="Current Password"
-                  value={emailPwd}
-                  onChange={e => setEmailPwd(e.target.value)}
+                  className="input input-bordered w-full font-nunito-sans"
+                  value={pwForm.current}
+                  onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
+                  autoComplete="current-password"
                   required
                 />
-                {emailError && <div className="alert alert-error py-1">{emailError}</div>}
-                {emailSuccess && <div className="alert alert-success py-1">{emailSuccess}</div>}
-                <div className="flex justify-end">
-                  <button className="btn btn-primary" type="submit">
-                    Change Email
+                <label className="label text-xs font-quicksand mt-2">New Password</label>
+                <input
+                  type="password"
+                  className="input input-bordered w-full font-nunito-sans"
+                  value={pwForm.new1}
+                  onChange={e => setPwForm(f => ({ ...f, new1: e.target.value }))}
+                  autoComplete="new-password"
+                  required
+                />
+                <label className="label text-xs font-quicksand mt-2">Confirm New Password</label>
+                <input
+                  type="password"
+                  className="input input-bordered w-full font-nunito-sans"
+                  value={pwForm.new2}
+                  onChange={e => setPwForm(f => ({ ...f, new2: e.target.value }))}
+                  autoComplete="new-password"
+                  required
+                />
+                {pwStatus.message && (
+                  <div className={`alert py-1 mt-2 alert-${pwStatus.type}`}>
+                    <span>{pwStatus.message}</span>
+                  </div>
+                )}
+                <div className="flex justify-end space-x-2 mt-6">
+                  <button
+                    className="btn btn-outline btn-error"
+                    type="button"
+                    onClick={closePasswordModal}
+                    disabled={pwLoading}
+                  >
+                    Cancel
                   </button>
-                </div>
-              </form>
-            </div>
-          </details>
-
-          {/* Change Password Accordion */}
-          <details className="collapse" open={showPwd}>
-            <summary
-              className="collapse-title font-quicksand font-bold cursor-pointer"
-              onClick={() => setShowPwd(!showPwd)}
-            >
-              Change Password
-            </summary>
-            <div className="collapse-content">
-              <form className="space-y-2" onSubmit={handleChangePassword}>
-                <input
-                  type="password"
-                  className="input input-bordered w-full"
-                  placeholder="Current Password"
-                  value={pwdCurrent}
-                  onChange={e => setPwdCurrent(e.target.value)}
-                  required
-                />
-                <input
-                  type="password"
-                  className="input input-bordered w-full"
-                  placeholder="New Password"
-                  value={pwdNew}
-                  onChange={e => setPwdNew(e.target.value)}
-                  required
-                />
-                <input
-                  type="password"
-                  className="input input-bordered w-full"
-                  placeholder="Confirm New Password"
-                  value={pwdConfirm}
-                  onChange={e => setPwdConfirm(e.target.value)}
-                  required
-                />
-                {pwdError && <div className="alert alert-error py-1">{pwdError}</div>}
-                {pwdSuccess && <div className="alert alert-success py-1">{pwdSuccess}</div>}
-                <div className="flex justify-end">
-                  <button className="btn btn-primary" type="submit">
+                  <button
+                    className={`btn btn-primary${pwLoading ? " loading" : ""}`}
+                    type="submit"
+                    disabled={pwLoading}
+                  >
                     Change Password
                   </button>
                 </div>
               </form>
             </div>
-          </details>
-        </div>
+            <div className="modal-backdrop" onClick={closePasswordModal} />
+          </div>
+        )}
       </div>
     </div>
   );
