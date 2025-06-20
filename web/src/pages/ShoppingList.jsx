@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import ShoppingListHeader from '../components/shoppingList/ShoppingListHeader.jsx';
 import AddShoppingListItemModal from '../components/shoppingList/AddShoppingListItemModal';
+import ManageStoresModal from '../components/shoppingList/ManageStoresModal';
+import ManageCategoriesModal from '../components/shoppingList/ManageCategoriesModal';
 import shoppingListService from '../services/shoppingListService';
-import masterDataService from '../services/masterDataService'; // << NEW
+import masterDataService from '../services/masterDataService';
 
 function getCategoryName(item, categories) {
   return (
@@ -36,6 +38,8 @@ function ShoppingList() {
   const [stores, setStores] = useState([]);
   const [products, setProducts] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showStoresModal, setShowStoresModal] = useState(false);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [selected, setSelected] = useState([]);
 
   useEffect(() => {
@@ -72,7 +76,12 @@ function ShoppingList() {
 
   return (
     <div className="p-4 pb-24">
-      <ShoppingListHeader onAdd={() => setShowAddModal(true)} />
+      <ShoppingListHeader
+        onAdd={() => setShowAddModal(true)}
+        onManageStores={() => setShowStoresModal(true)}
+        onManageCategories={() => setShowCategoriesModal(true)}
+      />
+
       <AddShoppingListItemModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
@@ -81,6 +90,20 @@ function ShoppingList() {
         products={products}
         onSuccess={fetchAll}
       />
+
+      <ManageStoresModal
+        isOpen={showStoresModal}
+        stores={stores}
+        onClose={() => setShowStoresModal(false)}
+        refresh={fetchAll}
+      />
+      <ManageCategoriesModal
+        isOpen={showCategoriesModal}
+        categories={categories}
+        onClose={() => setShowCategoriesModal(false)}
+        refresh={fetchAll}
+      />
+
       <div className="mb-4">
         {selected.length > 0 && (
           <button
