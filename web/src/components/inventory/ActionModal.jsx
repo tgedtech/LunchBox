@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import axios from '../../utils/axiosInstance';
+import StepperInput from '../common/StepperInput';
 
 function formatExpiration(date) {
   if (!date) return null;
@@ -76,7 +77,6 @@ function ActionModal({
       if (updateInventoryItems && typeof updateInventoryItems === 'function') {
         updateInventoryItems(item, updatedItems || []);
       }
-      console.log("MODAL CONFIRM", { quantity, addToList });
       onConfirm?.({ quantity, addToList });
       afterAction?.();
       onClose();
@@ -107,23 +107,20 @@ function ActionModal({
             ) : null}
           </div>
           {showHowMany && (
-            <div>
-              <label className="block font-quicksand mb-1">
-                How many?
-              </label>
-              <input
-                type="range"
+            <div className="flex items-center gap-2 mb-1">
+              <label className="font-quicksand mr-2">How many?</label>
+              <StepperInput
+                value={quantity}
+                onChange={v => setQuantity(Number(v))}
                 min={1}
                 max={maxQuantity}
-                value={quantity}
-                onChange={e => setQuantity(Number(e.target.value))}
-                className="range range-primary"
                 step={1}
+                inputClass="input-xs w-16"
                 disabled={loading}
               />
-              <div className="mt-1 text-sm text-primary font-bold">
-                {quantity} {item.unit}{quantity > 1 ? 's' : ''}
-              </div>
+              <span className="ml-1 text-sm text-primary font-bold">
+                {item.unit}{quantity > 1 ? 's' : ''}
+              </span>
             </div>
           )}
           {showExpiration && (

@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import ShoppingListHeader from '../components/shoppingList/ShoppingListHeader.jsx';
 import AddShoppingListItemModal from '../components/shoppingList/AddShoppingListItemModal';
 import ManageStoresModal from '../components/shoppingList/ManageStoresModal';
 import ManageCategoriesModal from '../components/shoppingList/ManageCategoriesModal';
 import shoppingListService from '../services/shoppingListService';
 import masterDataService from '../services/masterDataService';
+import StepperInput from '../components/common/StepperInput';
 
 function getCategoryName(item, categories) {
   return (
@@ -41,6 +42,9 @@ function ShoppingList() {
   const [showStoresModal, setShowStoresModal] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [selected, setSelected] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [editingValue, setEditingValue] = useState('');
+  const inputRef = useRef(null);
 
   useEffect(() => {
     fetchAll();
@@ -58,7 +62,16 @@ function ShoppingList() {
     setStores(str);
     setProducts(prods);
     setSelected([]);
+    setEditingId(null);
+    setEditingValue('');
   }
+
+  useEffect(() => {
+    if (editingId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingId]);
 
   const grouped = groupByCategory(items, categories);
 
@@ -74,8 +87,28 @@ function ShoppingList() {
     fetchAll();
   };
 
+  const exitEditMode = () => {
+    setEditingId(null);
+    setEditingValue('');
+  };
+
+  const handleSaveEdit = async (item) => {
+    const newQty = parseFloat(editingValue);
+    // Only save if different and valid
+    if (!isNaN(newQty) && newQty > 0 && newQty !== item.quantity) {
+      try {
+        await shoppingListService.updateItem(item.id, { quantity: newQty });
+        await fetchAll();
+      } catch (err) {
+        // Swallow for now
+      }
+    }
+    exitEditMode();
+  };
+
   return (
     <div className="p-4 pb-24">
+      {/* Header and modals */}
       <ShoppingListHeader
         onAdd={() => setShowAddModal(true)}
         onManageStores={() => setShowStoresModal(true)}
@@ -104,6 +137,7 @@ function ShoppingList() {
         refresh={fetchAll}
       />
 
+      {/* Bulk delete UI */}
       <div className="mb-4">
         {selected.length > 0 && (
           <button
@@ -114,6 +148,8 @@ function ShoppingList() {
           </button>
         )}
       </div>
+
+      {/* Shopping list table */}
       <div className="bg-base-100 rounded-lg shadow overflow-x-auto">
         <table className="table w-full text-sm">
           <thead>
@@ -125,7 +161,7 @@ function ShoppingList() {
               <th>Notes</th>
               <th>Store</th>
               <th>Category</th>
-              <th></th>
+              <th></th> {/* Action buttons (Edit, Delete) */}
             </tr>
           </thead>
           <tbody>
@@ -148,7 +184,41 @@ function ShoppingList() {
                       {item.product?.name || item.name}
                     </td>
                     <td>
-                      {item.quantity}
+                      {editingId === item.id ? (
+                        <div className="flex items-center gap-2">
+                          <StepperInput
+                            value={editingValue}
+                            onChange={v => setEditingValue(v.replace(/^0+/, '') || '1')}
+                            min={1}
+                            step={1}
+                            inputClass="input-xs w-16"
+                            ref={inputRef}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveEdit(item);
+                              if (e.key === 'Escape') exitEditMode();
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:underline"
+                          onClick={() => {
+                            setEditingId(item.id);
+                            setEditingValue(item.quantity.toString());
+                          }}
+                          tabIndex={0}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              setEditingId(item.id);
+                              setEditingValue(item.quantity.toString());
+                            }
+                          }}
+                          role="button"
+                          aria-label="Edit quantity"
+                        >
+                          {item.quantity}
+                        </span>
+                      )}
                     </td>
                     <td>
                       {item.unit ||
@@ -165,12 +235,34 @@ function ShoppingList() {
                     <td>
                       {getCategoryName(item, categories)}
                     </td>
-                    <td>
+                    <td className="flex gap-2 justify-end items-center">
+                      {editingId === item.id ? (
+                        <button
+                          className="btn btn-xs btn-primary"
+                          onClick={() => handleSaveEdit(item)}
+                          aria-label="Done editing quantity"
+                        >
+                          Done
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-xs btn-outline btn-primary"
+                          onClick={() => {
+                            setEditingId(item.id);
+                            setEditingValue(item.quantity.toString());
+                            setTimeout(() => inputRef.current?.focus(), 0);
+                          }}
+                          aria-label="Edit Quantity"
+                        >
+                          Edit
+                        </button>
+                      )}
                       <button
                         className="btn btn-xs btn-outline btn-error"
                         onClick={() => {
                           shoppingListService.deleteItem(item.id).then(fetchAll);
                         }}
+                        aria-label="Delete Item"
                       >
                         Delete
                       </button>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import CreatableSelect from 'react-select/creatable';
 import axios from '../../utils/axiosInstance';
+import StepperInput from '../common/StepperInput';
 
 function getOptionByValue(val, arr) {
   if (!val) return null;
@@ -28,7 +29,7 @@ function AddItemModal({
   refreshMasterData,
 }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState('1');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null);
@@ -39,11 +40,10 @@ function AddItemModal({
   const [error, setError] = useState('');
   const [apiError, setApiError] = useState('');
 
-  // Fully reset modal on open
   useEffect(() => {
     if (isOpen) {
       setSelectedProduct(null);
-      setQuantity(1);
+      setQuantity('1');
       setSelectedCategory(null);
       setSelectedLocation(null);
       setSelectedStore(null);
@@ -147,7 +147,7 @@ function AddItemModal({
       setError('Product name is required');
       return;
     }
-    if (quantity <= 0) {
+    if (isNaN(Number(quantity)) || Number(quantity) <= 0) {
       setError('Quantity must be greater than zero');
       return;
     }
@@ -219,7 +219,7 @@ function AddItemModal({
         productId,
         locationId: locId,
         unit: selectedUnit?.label || '',
-        quantity,
+        quantity: Number(quantity),
         expiration: expiration ? new Date(expiration).toISOString() : null,
         opened: false,
         price: price ? parseFloat(price) : null,
@@ -266,13 +266,11 @@ function AddItemModal({
 
           {/* Quantity */}
           <label className="label font-quicksand font-black text-base-content mt-4">Quantity</label>
-          <input
-            type="number"
-            min={1}
-            placeholder="Enter How Many"
-            className="input bg-neutral-content w-full"
+          <StepperInput
             value={quantity}
-            onChange={e => setQuantity(Number(e.target.value))}
+            onChange={setQuantity}
+            min={1}
+            inputClass="input bg-neutral-content w-20"
           />
 
           {/* Category */}

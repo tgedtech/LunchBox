@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import shoppingListService from '../../services/shoppingListService';
+import StepperInput from '../common/StepperInput';
 
 const EMPTY_ROW = {
   amount: 1,
@@ -66,13 +67,13 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
       rows.map((row, i) =>
         i === idx
           ? {
-              ...row,
-              name: prod.name,
-              productId: prod.id,
-              unit: prod.defaultUnit || '',
-              categoryId: prod.categoryId || '',
-              // Don't pre-fill store
-            }
+            ...row,
+            name: prod.name,
+            productId: prod.id,
+            unit: prod.defaultUnit || '',
+            categoryId: prod.categoryId || '',
+            // Don't pre-fill store
+          }
           : row
       )
     );
@@ -153,13 +154,12 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
                   />
                 </td>
                 <td>
-                  <input
-                    ref={el => (inputRefs.current[`${idx}-unit`] = el)}
-                    type="text"
-                    className="input input-xs input-bordered w-12"
-                    value={row.unit}
-                    onChange={e => handleChange(idx, 'unit', e.target.value)}
-                    placeholder="Unit"
+                    <StepperInput
+                    value={row.amount}
+                    min={1}
+                    onChange={v => handleChange(idx, 'amount', Math.max(1, Number(v)))}
+                    inputClass="w-12"
+                    className="min-w-[80px]"
                   />
                 </td>
                 <td className="relative">
