@@ -23,6 +23,7 @@ model User {
 model ProductCategory {
   id       String    @id @default(uuid())
   name     String    @unique
+  favorite Boolean   @default(false)
   products Product[]
 }
 
@@ -86,6 +87,7 @@ model InventoryItem {
 model Store {
   id   String @id @default(uuid())
   name String @unique
+  favorite Boolean @default(false)
 
   inventoryItems InventoryItem[]
   shoppingListItems ShoppingListItem[]

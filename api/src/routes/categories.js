@@ -18,11 +18,10 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 router.post('/', authMiddleware, async (req, res) => {
-  const { name } = req.body;
-
+  const { name, favorite } = req.body;
   try {
     const category = await prisma.productCategory.create({
-      data: { name },
+      data: { name, favorite: !!favorite },
     });
     res.status(201).json(category);
   } catch (err) {
@@ -33,12 +32,11 @@ router.post('/', authMiddleware, async (req, res) => {
 
 router.put('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { name } = req.body;
-
+  const { name, favorite } = req.body;
   try {
     const category = await prisma.productCategory.update({
       where: { id },
-      data: { name },
+      data: { ...(name && { name }), ...(favorite !== undefined && { favorite }) },
     });
     res.json(category);
   } catch (err) {
@@ -49,7 +47,6 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
 router.delete('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
-
   try {
     await prisma.productCategory.delete({
       where: { id },
