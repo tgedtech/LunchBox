@@ -34,6 +34,7 @@ function Settings() {
   const [pwStatus, setPwStatus] = useState({ type: '', message: '' });
   const [pwLoading, setPwLoading] = useState(false);
 
+  // Fetch user info on mount
   useEffect(() => {
     async function fetchUser() {
       try {
@@ -49,19 +50,34 @@ function Settings() {
     fetchUser();
   }, [token]);
 
+  // Email Update Handler
   const handleEmailUpdate = async (e) => {
     e.preventDefault();
     setEmailStatus({ type: '', message: '' });
+
     if (!emailInput || !/\S+@\S+\.\S+/.test(emailInput)) {
       setEmailStatus({ type: 'error', message: 'Please enter a valid email address.' });
       return;
     }
-    setTimeout(() => {
-      setUser((u) => ({ ...u, email: emailInput }));
-      setEmailStatus({ type: 'success', message: 'Email updated (demo only).' });
-    }, 800);
+
+    try {
+      const res = await axios.patch('/me/email', { email: emailInput }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUser(res.data.user);
+      setEmailStatus({ type: 'success', message: 'Email updated successfully.' });
+    } catch (err) {
+      if (err.response?.status === 409) {
+        setEmailStatus({ type: 'error', message: 'Email already in use.' });
+      } else if (err.response?.status === 400) {
+        setEmailStatus({ type: 'error', message: err.response.data.error || 'Invalid email.' });
+      } else {
+        setEmailStatus({ type: 'error', message: 'Failed to update email.' });
+      }
+    }
   };
 
+  // Password Modal/Handlers
   const openPasswordModal = () => {
     setShowPasswordModal(true);
     setPwForm({ current: '', new1: '', new2: '' });
@@ -78,6 +94,7 @@ function Settings() {
   const handlePasswordChange = async (e) => {
     e.preventDefault();
     setPwStatus({ type: '', message: '' });
+
     if (!pwForm.current || !pwForm.new1 || !pwForm.new2) {
       setPwStatus({ type: 'error', message: 'All fields are required.' });
       return;
@@ -90,12 +107,29 @@ function Settings() {
       setPwStatus({ type: 'error', message: 'Password must be at least 8 characters.' });
       return;
     }
+
     setPwLoading(true);
-    setTimeout(() => {
-      setPwStatus({ type: 'success', message: 'Password updated (demo only).' });
+
+    try {
+      await axios.post('/me/password', {
+        currentPassword: pwForm.current,
+        newPassword: pwForm.new1,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPwStatus({ type: 'success', message: 'Password updated successfully.' });
       setPwLoading(false);
       setTimeout(closePasswordModal, 1200);
-    }, 1100);
+    } catch (err) {
+      setPwLoading(false);
+      if (err.response?.status === 403) {
+        setPwStatus({ type: 'error', message: 'Incorrect current password.' });
+      } else if (err.response?.status === 400) {
+        setPwStatus({ type: 'error', message: err.response.data.error || 'Invalid password.' });
+      } else {
+        setPwStatus({ type: 'error', message: 'Failed to update password.' });
+      }
+    }
   };
 
   const handleLogout = () => {
