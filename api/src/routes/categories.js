@@ -58,4 +58,25 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+router.post('/:id/reassign-and-delete', authMiddleware, async (req, res) => {
+  const { id } = req.params; // category to delete
+  const { reassignToCategoryId } = req.body;
+  if (!reassignToCategoryId) {
+    return res.status(400).json({ error: 'Missing reassignment category.' });
+  }
+  try {
+    // 1. Update all products pointing to this category
+    await prisma.product.updateMany({
+      where: { categoryId: id },
+      data: { categoryId: reassignToCategoryId }
+    });
+    // 2. Delete the old category
+    await prisma.productCategory.delete({ where: { id } });
+    res.json({ message: 'Category reassigned and deleted.' });
+  } catch (err) {
+    console.error('Error reassigning/deleting category:', err);
+    res.status(500).json({ error: 'Failed to reassign and delete category.' });
+  }
+});
+
 export default router;

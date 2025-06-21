@@ -24,13 +24,15 @@ function LocationsTable({ locations, onEdit, onDelete }) {
                 <td className="flex space-x-2">
                   <button
                     className="btn btn-xs btn-primary"
+                    data-testid={`edit-location-${location.id}`}
                     onClick={() => onEdit(location)}
                   >
                     Edit
                   </button>
                   <button
                     className="btn btn-xs btn-error"
-                    onClick={() => onDelete(location.id)}
+                    data-testid={`delete-location-${location.id}`}
+                    onClick={() => onDelete(location)}
                   >
                     Delete
                   </button>

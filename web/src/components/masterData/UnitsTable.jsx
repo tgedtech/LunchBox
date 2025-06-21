@@ -24,13 +24,15 @@ function UnitsTable({ units, onEdit, onDelete }) {
                 <td className="flex space-x-2">
                   <button
                     className="btn btn-xs btn-primary"
+                    data-testid={`edit-unit-${unit.id}`}
                     onClick={() => onEdit(unit)}
                   >
                     Edit
                   </button>
                   <button
                     className="btn btn-xs btn-error"
-                    onClick={() => onDelete(unit.id)}
+                    data-testid={`delete-unit-${unit.id}`}
+                    onClick={() => onDelete(unit)}
                   >
                     Delete
                   </button>

@@ -20,6 +20,11 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
   const { name, favorite } = req.body;
   try {
+    // Uniqueness check
+    const exists = await prisma.store.findUnique({ where: { name } });
+    if (exists) {
+      return res.status(400).json({ error: 'Store name must be unique.' });
+    }
     const store = await prisma.store.create({
       data: { name, favorite: !!favorite },
     });
@@ -34,6 +39,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { name, favorite } = req.body;
   try {
+    // Uniqueness check
+    if (name) {
+      const exists = await prisma.store.findFirst({
+        where: { name, NOT: { id } },
+      });
+      if (exists) {
+        return res.status(400).json({ error: 'Store name must be unique.' });
+      }
+    }
     const store = await prisma.store.update({
       where: { id },
       data: { ...(name && { name }), ...(favorite !== undefined && { favorite }) },
@@ -48,13 +62,37 @@ router.put('/:id', authMiddleware, async (req, res) => {
 router.delete('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
-    await prisma.store.delete({
-      where: { id },
-    });
+    await prisma.store.delete({ where: { id } });
     res.json({ message: 'Store deleted' });
   } catch (err) {
     console.error('Error deleting store:', err);
     res.status(500).json({ error: 'Failed to delete store' });
+  }
+});
+
+// ----------- REASSIGN-AND-DELETE -----------
+router.post('/:id/reassign-and-delete', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { reassignToStoreId } = req.body;
+  if (!reassignToStoreId) {
+    return res.status(400).json({ error: 'Missing reassignment store.' });
+  }
+  try {
+    // Reassign in InventoryItems
+    await prisma.inventoryItem.updateMany({
+      where: { storeId: id },
+      data: { storeId: reassignToStoreId }
+    });
+    // Reassign in ShoppingListItems
+    await prisma.shoppingListItem.updateMany({
+      where: { storeId: id },
+      data: { storeId: reassignToStoreId }
+    });
+    await prisma.store.delete({ where: { id } });
+    res.json({ message: 'Store reassigned and deleted.' });
+  } catch (err) {
+    console.error('Error reassigning/deleting store:', err);
+    res.status(500).json({ error: 'Failed to reassign and delete store.' });
   }
 });
 

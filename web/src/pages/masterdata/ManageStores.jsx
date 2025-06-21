@@ -10,7 +10,10 @@ function ManageStores() {
   const [stores, setStores] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // --- Fetch all stores from API ---
+  // Edit state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editStore, setEditStore] = useState(null);
+
   const fetchStores = async () => {
     try {
       const res = await axios.get('/stores', {
@@ -26,7 +29,6 @@ function ManageStores() {
     fetchStores();
   }, [token]);
 
-  // --- Modal open/close/success handlers ---
   const handleAddClick = () => setShowAddModal(true);
   const handleModalClose = () => setShowAddModal(false);
   const handleModalSuccess = () => {
@@ -34,20 +36,37 @@ function ManageStores() {
     setShowAddModal(false);
   };
 
-  // --- Edit/delete handlers (stubbed for now) ---
+  // Edit handlers
   const handleEdit = (store) => {
-    console.log('Edit store:', store);
+    setEditStore(store);
+    setShowEditModal(true);
   };
-  const handleDelete = (id) => {
-    console.log('Delete store with id:', id);
+  const handleEditModalClose = () => {
+    setEditStore(null);
+    setShowEditModal(false);
+  };
+  const handleEditModalSuccess = () => {
+    fetchStores();
+    setEditStore(null);
+    setShowEditModal(false);
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this store?')) {
+      try {
+        await axios.delete(`/stores/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        fetchStores();
+      } catch (err) {
+        console.error('Error deleting store:', err);
+      }
+    }
   };
 
   return (
     <div className="p-4 pb-24">
-      {/* Page header with Add button */}
       <MasterDataHeader title="Manage Stores" onAdd={handleAddClick} />
-
-      {/* Table of stores */}
       <StoresTable
         stores={stores}
         onEdit={handleEdit}
@@ -61,6 +80,17 @@ function ManageStores() {
         onSuccess={handleModalSuccess}
         type="Store"
         existingItems={stores}
+      />
+
+      {/* Edit Modal */}
+      <AddMasterDataModal
+        isOpen={showEditModal}
+        onClose={handleEditModalClose}
+        onSuccess={handleEditModalSuccess}
+        type="Store"
+        existingItems={stores}
+        isEdit={true}
+        initialItem={editStore}
       />
     </div>
   );

@@ -10,7 +10,10 @@ function ManageUnits() {
   const [units, setUnits] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // --- Fetch all units from API ---
+  // Edit state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editUnit, setEditUnit] = useState(null);
+
   const fetchUnits = async () => {
     try {
       const res = await axios.get('/units', {
@@ -26,7 +29,6 @@ function ManageUnits() {
     fetchUnits();
   }, [token]);
 
-  // --- Modal open/close/success handlers ---
   const handleAddClick = () => setShowAddModal(true);
   const handleModalClose = () => setShowAddModal(false);
   const handleModalSuccess = () => {
@@ -34,20 +36,37 @@ function ManageUnits() {
     setShowAddModal(false);
   };
 
-  // --- Edit/delete handlers (stubbed for now) ---
+  // Edit handlers
   const handleEdit = (unit) => {
-    console.log('Edit unit:', unit);
+    setEditUnit(unit);
+    setShowEditModal(true);
   };
-  const handleDelete = (id) => {
-    console.log('Delete unit with id:', id);
+  const handleEditModalClose = () => {
+    setEditUnit(null);
+    setShowEditModal(false);
+  };
+  const handleEditModalSuccess = () => {
+    fetchUnits();
+    setEditUnit(null);
+    setShowEditModal(false);
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this unit?')) {
+      try {
+        await axios.delete(`/units/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        fetchUnits();
+      } catch (err) {
+        console.error('Error deleting unit:', err);
+      }
+    }
   };
 
   return (
     <div className="p-4 pb-24">
-      {/* Page header with Add button */}
       <MasterDataHeader title="Manage Units" onAdd={handleAddClick} />
-
-      {/* Table of units */}
       <UnitsTable
         units={units}
         onEdit={handleEdit}
@@ -61,6 +80,17 @@ function ManageUnits() {
         onSuccess={handleModalSuccess}
         type="Unit"
         existingItems={units}
+      />
+
+      {/* Edit Modal */}
+      <AddMasterDataModal
+        isOpen={showEditModal}
+        onClose={handleEditModalClose}
+        onSuccess={handleEditModalSuccess}
+        type="Unit"
+        existingItems={units}
+        isEdit={true}
+        initialItem={editUnit}
       />
     </div>
   );

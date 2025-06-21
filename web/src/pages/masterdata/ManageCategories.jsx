@@ -4,21 +4,31 @@ import axios from '../../utils/axiosInstance';
 import useAuth from '../../hooks/useAuth';
 import MasterDataHeader from '../../components/MasterDataHeader';
 import AddMasterDataModal from '../../components/masterdata/AddMasterDataModal';
+import ConfirmReassignDeleteModal from '../../components/common/ConfirmReassignDeleteModal';
 
 function ManageCategories() {
-  // --- Auth for protected endpoints ---
   const { token } = useAuth();
 
-  // --- Category state and fetch status ---
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // --- Modal open/close state ---
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // --- Fetch all categories from API ---
+  // Edit state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editCategory, setEditCategory] = useState(null);
+
+  // Delete state
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    category: null,
+    error: '',
+    loading: false,
+  });
+
   const fetchCategories = async () => {
+    setLoading(true);
     try {
       const res = await axios.get('/categories', {
         headers: { Authorization: `Bearer ${token}` },
@@ -32,33 +42,45 @@ function ManageCategories() {
     }
   };
 
-  // --- On mount, fetch categories ---
   useEffect(() => {
     fetchCategories();
+    // eslint-disable-next-line
   }, []);
 
-  // --- Edit (stub for now) ---
   const handleEdit = (category) => {
-    console.log('Edit category:', category);
-    // TODO: Implement edit
+    setEditCategory(category);
+    setShowEditModal(true);
   };
 
-  // --- Delete handler with confirmation and refresh ---
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
-      try {
-        await axios.delete(`/categories/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        fetchCategories();
-      } catch (err) {
-        console.error('Error deleting category:', err);
-        // TODO: Show error toast/UI
-      }
+  const handleDelete = (category) => {
+    setDeleteModal({
+      open: true,
+      category,
+      error: '',
+      loading: false,
+    });
+  };
+
+  const handleConfirmDelete = async (reassignToCategoryId) => {
+    setDeleteModal((modal) => ({ ...modal, loading: true, error: '' }));
+    try {
+      await axios.post(
+        `/categories/${deleteModal.category.id}/reassign-and-delete`,
+        { reassignToCategoryId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setDeleteModal({ open: false, category: null, error: '', loading: false });
+      fetchCategories();
+    } catch (err) {
+      console.error('Error during reassign/delete:', err);
+      setDeleteModal((modal) => ({
+        ...modal,
+        error: err?.response?.data?.error || 'Failed to reassign/delete category',
+        loading: false,
+      }));
     }
   };
 
-  // --- Add modal open/close handlers ---
   const handleAddClick = () => setShowAddModal(true);
   const handleModalClose = () => setShowAddModal(false);
   const handleModalSuccess = () => {
@@ -66,13 +88,21 @@ function ManageCategories() {
     setShowAddModal(false);
   };
 
-  // --- Render ---
+  // Edit modal handlers
+  const handleEditModalClose = () => {
+    setShowEditModal(false);
+    setEditCategory(null);
+  };
+  const handleEditModalSuccess = () => {
+    fetchCategories();
+    setShowEditModal(false);
+    setEditCategory(null);
+  };
+
   return (
     <div className="p-4 pb-24">
-      {/* Page header with Add button */}
       <MasterDataHeader title="Manage Categories" onAdd={handleAddClick} />
 
-      {/* Loading, error, or table */}
       {loading ? (
         <p>Loading categories...</p>
       ) : error ? (
@@ -92,6 +122,32 @@ function ManageCategories() {
         onSuccess={handleModalSuccess}
         type="Category"
         existingItems={categories}
+        isEdit={false}
+        initialItem={null}
+      />
+
+      {/* Modal for editing a category */}
+      <AddMasterDataModal
+        isOpen={showEditModal}
+        onClose={handleEditModalClose}
+        onSuccess={handleEditModalSuccess}
+        type="Category"
+        existingItems={categories}
+        isEdit={true}
+        initialItem={editCategory}
+      />
+
+      {/* Confirm delete & reassign modal */}
+      <ConfirmReassignDeleteModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, category: null, error: '', loading: false })}
+        onConfirm={handleConfirmDelete}
+        entityType="Category"
+        entityName={deleteModal.category?.name || ''}
+        options={categories}
+        excludeId={deleteModal.category?.id}
+        loading={deleteModal.loading}
+        error={deleteModal.error}
       />
     </div>
   );

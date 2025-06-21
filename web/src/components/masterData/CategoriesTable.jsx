@@ -30,7 +30,7 @@ function CategoriesTable({ categories, onEdit, onDelete }) {
                   </button>
                   <button
                     className="btn btn-xs btn-error"
-                    onClick={() => onDelete(category.id)}
+                    onClick={() => onDelete(category)}
                   >
                     Delete
                   </button>

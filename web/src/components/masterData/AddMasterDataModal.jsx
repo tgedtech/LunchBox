@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from '../../utils/axiosInstance';
 import CreatableSelect from 'react-select/creatable';
 
-// Utility: normalize select value
 function getOptionByValue(val, arr) {
   if (!val) return null;
   if (typeof val === 'object' && val.value) return val;
@@ -19,6 +18,8 @@ function AddMasterDataModal({
   locations = [],
   units = [],
   existingItems = [],
+  isEdit = false,
+  initialItem = null,
 }) {
   const [name, setName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -27,32 +28,51 @@ function AddMasterDataModal({
 
   const [nameError, setNameError] = useState('');
   const [apiError, setApiError] = useState('');
+  const [loading, setLoading] = useState(false);
 
+  const inputRef = useRef();
+
+  // Reset or pre-fill modal on open
   useEffect(() => {
     if (isOpen) {
-      setName('');
-      setSelectedCategory(null);
-      setSelectedLocation(null);
-      setSelectedUnit(null);
+      if (isEdit && initialItem) {
+        setName(initialItem.name || '');
+        setSelectedCategory(null); // For extension
+        setSelectedLocation(null);
+        setSelectedUnit(null);
+        setTimeout(() => { inputRef.current?.focus(); }, 50);
+      } else {
+        setName('');
+        setSelectedCategory(null);
+        setSelectedLocation(null);
+        setSelectedUnit(null);
+        setTimeout(() => { inputRef.current?.focus(); }, 50);
+      }
       setNameError('');
       setApiError('');
+      setLoading(false);
     }
-  }, [isOpen]);
+  }, [isOpen, isEdit, initialItem]);
 
-  const handleNameChange = (e) => {
-    const val = e.target.value;
-    setName(val);
-
-    const trimmed = val.trim().toLowerCase();
+  // Robust duplicate checking (ignore self if editing)
+  useEffect(() => {
+    if (!isOpen) return;
+    const trimmed = (name || '').trim().toLowerCase();
+    if (!trimmed) {
+      setNameError('');
+      return;
+    }
     const duplicate = existingItems.some(
-      (item) => (item.name || '').trim().toLowerCase() === trimmed
+      (item) =>
+        (item.name || '').trim().toLowerCase() === trimmed &&
+        (!isEdit || item.id !== initialItem?.id)
     );
     if (duplicate) {
       setNameError(`A ${type.toLowerCase()} with this name already exists.`);
     } else {
       setNameError('');
     }
-  };
+  }, [name, existingItems, isEdit, initialItem, type, isOpen]);
 
   const getEndpoint = () => {
     switch (type) {
@@ -66,7 +86,6 @@ function AddMasterDataModal({
   };
 
   const selectStyle = {
-    // (same as before)
     control: (provided, state) => ({
       ...provided,
       backgroundColor: '#f9fafb',
@@ -108,7 +127,6 @@ function AddMasterDataModal({
     }),
   };
 
-  // Always resolve to ID for POSTs
   function getIdFromSelect(val, arr) {
     if (!val) return null;
     if (typeof val === 'object' && val.value) return val.value;
@@ -118,57 +136,73 @@ function AddMasterDataModal({
 
   const handleSave = async () => {
     setApiError('');
-
     if (!name.trim()) {
       setNameError(`${type} name is required`);
       return;
     }
     if (nameError) return;
+    setLoading(true);
 
     try {
-      const payload = { name: name.trim() };
-
-      if (type === 'Product') {
-        let catId = getIdFromSelect(selectedCategory, categories);
-        if (selectedCategory?.__isNew__ && selectedCategory.label) {
-          const res = await axios.post('/categories', { name: selectedCategory.label.trim() });
-          catId = res.data.id;
-          setSelectedCategory({ value: catId, label: res.data.name });
+      if (isEdit && initialItem?.id) {
+        if (name.trim() === initialItem.name) {
+          setLoading(false);
+          onClose();
+          return;
         }
-
-        let locId = getIdFromSelect(selectedLocation, locations);
-        if (selectedLocation?.__isNew__ && selectedLocation.label) {
-          const res = await axios.post('/locations', { name: selectedLocation.label.trim() });
-          locId = res.data.id;
-          setSelectedLocation({ value: locId, label: res.data.name });
+        await axios.put(`${getEndpoint()}/${initialItem.id}`, { name: name.trim() });
+      } else {
+        const payload = { name: name.trim() };
+        if (type === 'Product') {
+          let catId = getIdFromSelect(selectedCategory, categories);
+          if (selectedCategory?.__isNew__ && selectedCategory.label) {
+            const res = await axios.post('/categories', { name: selectedCategory.label.trim() });
+            catId = res.data.id;
+            setSelectedCategory({ value: catId, label: res.data.name });
+          }
+          let locId = getIdFromSelect(selectedLocation, locations);
+          if (selectedLocation?.__isNew__ && selectedLocation.label) {
+            const res = await axios.post('/locations', { name: selectedLocation.label.trim() });
+            locId = res.data.id;
+            setSelectedLocation({ value: locId, label: res.data.name });
+          }
+          let unitId = getIdFromSelect(selectedUnit, units);
+          if (selectedUnit?.__isNew__ && selectedUnit.label) {
+            const res = await axios.post('/units', { name: selectedUnit.label.trim() });
+            unitId = res.data.id;
+            setSelectedUnit({ value: unitId, label: res.data.name });
+          }
+          payload.categoryId = catId || null;
+          payload.defaultLocationId = locId || null;
+          payload.defaultUnitTypeId = unitId || null;
         }
-
-        let unitId = getIdFromSelect(selectedUnit, units);
-        if (selectedUnit?.__isNew__ && selectedUnit.label) {
-          const res = await axios.post('/units', { name: selectedUnit.label.trim() });
-          unitId = res.data.id;
-          setSelectedUnit({ value: unitId, label: res.data.name });
-        }
-
-        payload.categoryId = catId || null;
-        payload.defaultLocationId = locId || null;
-        payload.defaultUnitTypeId = unitId || null;
+        await axios.post(getEndpoint(), payload);
       }
-
-      await axios.post(getEndpoint(), payload);
-
       onSuccess && onSuccess();
       onClose();
     } catch (err) {
-      console.error(`Error adding ${type}:`, err);
+      // Handles hard uniqueness from Prisma
       if (
         err?.response?.data?.code === 'P2002' ||
         (err?.response?.data?.message?.toLowerCase?.() || '').includes('unique constraint')
       ) {
         setNameError(`A ${type.toLowerCase()} with this name already exists.`);
       } else {
-        setApiError(`Failed to add ${type}`);
+        setApiError(`Failed to ${isEdit ? 'update' : 'add'} ${type.toLowerCase()}`);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Enable save if all constraints met
+  const canSave = !loading && !nameError && !!name.trim();
+
+  // Keyboard: Enter = save if possible
+  const handleNameKeyDown = (e) => {
+    if (e.key === 'Enter' && canSave) {
+      e.preventDefault();
+      handleSave();
     }
   };
 
@@ -184,7 +218,7 @@ function AddMasterDataModal({
       <div className="modal">
         <div className="modal-box rounded-2xl border border-base-300 bg-primary-content shadow-xl">
           <h2 className="text-xl font-quicksand font-bold text-primary mb-4">
-            Add {type}
+            {isEdit ? `Edit ${type}` : `Add ${type}`}
           </h2>
           {apiError && (
             <div className="alert alert-error mb-4">
@@ -196,12 +230,15 @@ function AddMasterDataModal({
               {type} Name
             </label>
             <input
+              ref={inputRef}
               type="text"
               className={`input input-bordered bg-neutral-content w-full font-nunito-sans ${nameError ? 'input-error validator' : ''}`}
               value={name}
-              onChange={handleNameChange}
+              onChange={e => setName(e.target.value)}
               placeholder={`Enter ${type.toLowerCase()} name`}
               aria-invalid={!!nameError}
+              onKeyDown={handleNameKeyDown}
+              autoFocus
             />
             {nameError && (
               <p className="validator-hint text-error text-xs mt-1">
@@ -209,68 +246,17 @@ function AddMasterDataModal({
               </p>
             )}
           </div>
-          {type === 'Product' && (
-            <>
-              <div className="mb-4">
-                <label className="block text-sm font-bold mb-1 font-quicksand">
-                  Category
-                </label>
-                <CreatableSelect
-                  styles={selectStyle}
-                  value={selectedCategory}
-                  onChange={v => setSelectedCategory(getOptionByValue(v, categories))}
-                  options={categories.map(c => ({ value: c.id, label: c.name }))}
-                  placeholder="Enter or select category"
-                  isClearable
-                  menuPortalTarget={document.body}
-                  menuPosition="fixed"
-                  formatCreateLabel={inputValue => `Create "${inputValue}"`}
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-bold mb-1 font-quicksand">
-                  Default Location
-                </label>
-                <CreatableSelect
-                  styles={selectStyle}
-                  value={selectedLocation}
-                  onChange={v => setSelectedLocation(getOptionByValue(v, locations))}
-                  options={locations.map(l => ({ value: l.id, label: l.name }))}
-                  placeholder="Enter or select location"
-                  isClearable
-                  menuPortalTarget={document.body}
-                  menuPosition="fixed"
-                  formatCreateLabel={inputValue => `Create "${inputValue}"`}
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-bold mb-1 font-quicksand">
-                  Default Unit
-                </label>
-                <CreatableSelect
-                  styles={selectStyle}
-                  value={selectedUnit}
-                  onChange={v => setSelectedUnit(getOptionByValue(v, units))}
-                  options={units.map(u => ({ value: u.id, label: u.name }))}
-                  placeholder="Enter or select unit"
-                  isClearable
-                  menuPortalTarget={document.body}
-                  menuPosition="fixed"
-                  formatCreateLabel={inputValue => `Create "${inputValue}"`}
-                />
-              </div>
-            </>
-          )}
+          {/* Product fields omitted for Category */}
           <div className="flex justify-end space-x-2 mt-6 font-nunito-sans">
-            <button className="btn btn-outline btn-error" onClick={onClose}>
+            <button className="btn btn-outline btn-error" onClick={onClose} disabled={loading}>
               Cancel
             </button>
             <button
-              className="btn btn-primary"
+              className={`btn btn-primary${loading ? ' loading' : ''}`}
               onClick={handleSave}
-              disabled={!!nameError || !name.trim()}
+              disabled={!canSave}
             >
-              Save {type}
+              {isEdit ? `Save Changes` : `Save ${type}`}
             </button>
           </div>
         </div>

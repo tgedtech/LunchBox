@@ -24,13 +24,15 @@ function StoresTable({ stores, onEdit, onDelete }) {
                 <td className="flex space-x-2">
                   <button
                     className="btn btn-xs btn-primary"
+                    data-testid={`edit-store-${store.id}`}
                     onClick={() => onEdit(store)}
                   >
                     Edit
                   </button>
                   <button
                     className="btn btn-xs btn-error"
-                    onClick={() => onDelete(store.id)}
+                    data-testid={`delete-store-${store.id}`}
+                    onClick={() => onDelete(store)}
                   >
                     Delete
                   </button>
