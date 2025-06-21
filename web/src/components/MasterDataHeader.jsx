@@ -1,5 +1,6 @@
 import React from 'react';
 import LogOutIcon from '../assets/icons/logout.svg?react';
+import SettingsIcon from '../assets/icons/settings.svg?react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 
@@ -10,6 +11,10 @@ function MasterDataHeader({ title, onAdd }) {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleGoSettings = () => {
+    navigate('/settings');
   };
 
   return (
@@ -25,6 +30,15 @@ function MasterDataHeader({ title, onAdd }) {
               + Add
             </button>
           )}
+          <button
+            className="btn btn-sm btn-ghost text-base-content hover:text-primary flex items-center space-x-1"
+            onClick={handleGoSettings}
+            aria-label="Settings"
+            title="Settings"
+          >
+            <SettingsIcon className="w-5 h-5 text-primary" />
+            <span>Settings</span>
+          </button>
           <button
             className="btn btn-sm btn-ghost text-base-content hover:text-primary flex items-center space-x-1"
             onClick={handleLogout}
