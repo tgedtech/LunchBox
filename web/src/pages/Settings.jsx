@@ -26,15 +26,10 @@ function Settings() {
   const [emailStatus, setEmailStatus] = useState({ type: '', message: '' });
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [pwForm, setPwForm] = useState({
-    current: '',
-    new1: '',
-    new2: '',
-  });
+  const [pwForm, setPwForm] = useState({ current: '', new1: '', new2: '' });
   const [pwStatus, setPwStatus] = useState({ type: '', message: '' });
   const [pwLoading, setPwLoading] = useState(false);
 
-  // Fetch user info on mount
   useEffect(() => {
     async function fetchUser() {
       try {
@@ -50,7 +45,6 @@ function Settings() {
     fetchUser();
   }, [token]);
 
-  // Email Update Handler
   const handleEmailUpdate = async (e) => {
     e.preventDefault();
     setEmailStatus({ type: '', message: '' });
@@ -77,7 +71,6 @@ function Settings() {
     }
   };
 
-  // Password Modal/Handlers
   const openPasswordModal = () => {
     setShowPasswordModal(true);
     setPwForm({ current: '', new1: '', new2: '' });
@@ -137,38 +130,33 @@ function Settings() {
     navigate('/login');
   };
 
+  {/* Main Content Area */ }
   return (
-    <div className="min-h-screen bg-base-100 flex flex-col">
-      {/* Absolutely full-width, full-top header */}
-      <header className="fixed top-0 left-0 right-0 w-full bg-primary text-primary-content shadow-lg flex items-center justify-between px-8 z-30" style={{ minHeight: '88px' }}>
-        <h1 className="text-3xl font-quicksand font-bold">Settings</h1>
-        <button
-          className="btn btn-soft btn-sm btn-error flex items-center space-x-1"
-          onClick={handleLogout}
-        >
-          <span>Log Out</span>
-        </button>
-      </header>
+    <div className="w-full pb-24">
+      <div className="bg-warning min-h-15">
+        <div className="flex justify-between">
+          <h1 className="font-nunito-sans font-black text-xl text-warning-content p-4">Settings</h1>
+        </div>
+      </div>
 
-      {/* Main content (padding top matches header height) */}
-      <div className="flex-1 pt-[100px] pb-24 w-full">
-        <div className="flex flex-col md:flex-row gap-6 w-full px-0">
-          {/* Left column */}
-          <div className="flex flex-col gap-4 w-full md:w-[36rem] max-w-full px-4 md:px-8">
-            {/* Account Information Card */}
-            <div className="card bg-neutral-content card-lg shadow-sm rounded-xl">
+      <div className="bg-warning-content min-h-screen">
+        <div className="join space-x-4 pl-4 mt-4">
+          {/* Left vertical stack */}
+          <div className="join join-vertical space-y-4">
+            {/* Account Info */}
+            <div className="card bg-base-100 w-96 card-lg shadow-sm join-item rounded-xl">
               <div className="card-body">
                 <h2 className="card-title font-quicksand font-black">Account Information</h2>
-                <div className="pl-2">
-                  {/* Email Section */}
+                <div className="pl-4">
+                  {/* Email */}
                   <form onSubmit={handleEmailUpdate}>
                     <fieldset>
-                      <legend className="font-quicksand text-sm">Change Email</legend>
+                      <legend className="font-quicksand text-sm font-bold">Change Email</legend>
                       <div className="join">
                         <input
                           type="email"
                           placeholder="Email"
-                          className="input validator w-full font-nunito-sans join-item rounded-none"
+                          className="input validator w-full font-nunito-sans join-item rounded-none bg-neutral-content"
                           required
                           value={emailInput}
                           onChange={e => setEmailInput(e.target.value)}
@@ -189,11 +177,11 @@ function Settings() {
                       </div>
                     )}
                   </form>
-                  {/* Password Section */}
+                  {/* Password */}
                   <fieldset className="mt-3">
-                    <legend className="font-quicksand text-sm">Change Password</legend>
+                    <legend className="font-quicksand text-sm font-bold">Change Password</legend>
                     <button
-                      className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl"
+                      className="btn btn-primary btn-soft font-nunito-sans font-bold join-item rounded-xl"
                       onClick={openPasswordModal}
                       type="button"
                     >
@@ -203,151 +191,118 @@ function Settings() {
                 </div>
               </div>
             </div>
-            {/* Master Data Update Card */}
-            <div className="card bg-neutral-content card-lg shadow-sm rounded-xl">
+            {/* Master Data Update */}
+            <div className="card bg-base-100 w-96 card-lg shadow-sm join-item rounded-xl">
               <div className="card-body">
                 <h2 className="card-title font-quicksand font-black">Master Data Update</h2>
-                <div className="flex flex-col gap-3">
-                  <Link to="/settings/products" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                <div className="join join-vertical space-y-4">
+                  <Link to="/settings/products" className="btn btn-primary btn-soft font-nunito-sans font-bold join-item rounded-xl">
                     Update Products
                   </Link>
-                  <Link to="/settings/categories" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                  <Link to="/settings/categories" className="btn btn-primary btn-soft font-nunito-sans font-bold join-item rounded-xl">
                     Update Categories
                   </Link>
-                  <Link to="/settings/locations" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                  <Link to="/settings/locations" className="btn btn-primary btn-soft font-nunito-sans font-bold join-item rounded-xl">
                     Update Locations
                   </Link>
-                  <Link to="/settings/units" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                  <Link to="/settings/units" className="btn btn-primary btn-soft font-nunito-sans font-bold join-item rounded-xl">
                     Update Units
                   </Link>
-                  <Link to="/settings/stores" className="btn btn-primary btn-soft font-nunito-sans font-bold rounded-xl">
+                  <Link to="/settings/stores" className="btn btn-primary btn-soft font-nunito-sans font-bold join-item rounded-xl">
                     Update Stores
                   </Link>
                 </div>
               </div>
             </div>
           </div>
-
-          {/* Right column */}
-          <div className="flex-1 min-w-[320px] px-4 md:px-8">
-            <div className="card bg-neutral-content card-lg shadow-sm">
-              <div className="card-body">
-                <h2 className="card-title font-quicksand font-black">Account Status</h2>
-                <div className="flex flex-col gap-4">
-                  <p className="font-nunito-sans">
-                    You opened your account on <b>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : DUMMY_SUBSCRIPTION.opened}</b>.
-                  </p>
-                  {/* Subscription Details */}
-                  <div className="stats bg-base-100 border-base-300 border">
-                    <div className="stat">
-                      <div className="stat-title font-quicksand">Subscription Type</div>
-                      <div className="stat-value font-nunito-sans text-3xl">{DUMMY_SUBSCRIPTION.type}</div>
-                      <div className="stat-actions">
-                        <button className="btn btn-primary rounded-box btn-xs" disabled>Change Subscription Type</button>
-                      </div>
-                    </div>
-                    <div className="stat">
-                      <div className="stat-title font-quicksand">Expiration Date</div>
-                      <div className="stat-value font-nunito-sans text-2xl">{DUMMY_SUBSCRIPTION.expiration}</div>
-                      <div className="stat-actions">
-                        <button className="btn btn-primary btn-soft rounded-box btn-xs" disabled>Extend Subscription</button>
-                        <button className="btn btn-primary btn-soft rounded-box btn-xs" disabled>Make Recurring</button>
-                      </div>
-                    </div>
-                    <div className="stat">
-                      <div className="stat-title font-quicksand">Last Payment Date</div>
-                      <div className="stat-value font-nunito-sans text-2xl">{DUMMY_SUBSCRIPTION.lastPaymentDate}</div>
-                      <div className="stat-desc">{DUMMY_SUBSCRIPTION.lastPaymentAmount}</div>
+          {/* Right Account Status */}
+          <div className="card bg-base-100 min-w-192 card-lg shadow-sm">
+            <div className="card-body">
+              <h2 className="card-title font-quicksand font-black">Account Status</h2>
+              <div className="join join-vertical space-y-4">
+                <p className="font-nunito-sans">
+                  You opened your account on <b>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : DUMMY_SUBSCRIPTION.opened}</b>.
+                </p>
+                {/* Stats */}
+                <div className="stats bg-neutral-content border-base-300 border">
+                  <div className="stat">
+                    <div className="stat-title font-quicksand">Subscription Type</div>
+                    <div className="stat-value font-nunito-sans text-3xl">{DUMMY_SUBSCRIPTION.type}</div>
+                    <div className="stat-actions">
+                      <button className="btn btn-primary rounded-box btn-xs">Change Subscription Type</button>
                     </div>
                   </div>
-                  {/* Payment History Table */}
-                  <table className="table table-pin-rows">
-                    <thead className="font-quicksand bg-primary-content text-primary">
-                      <tr>
-                        <th>Purchase Date</th>
-                        <th>Effective Date</th>
-                        <th>Amount</th>
-                        <th>Status</th>
+                  <div className="stat">
+                    <div className="stat-title font-quicksand">Expiration Date</div>
+                    <div className="stat-value font-nunito-sans text-2xl">{DUMMY_SUBSCRIPTION.expiration}</div>
+                    <div className="stat-actions">
+                      <button className="btn btn-warning btn-soft rounded-box btn-xs mr-1">Extend Subscription</button>
+                      <button className="btn btn-warning btn-soft rounded-box btn-xs">Make Recurring</button>
+                    </div>
+                  </div>
+                  <div className="stat">
+                    <div className="stat-title font-quicksand">Last Payment Date</div>
+                    <div className="stat-value font-nunito-sans text-2xl">{DUMMY_SUBSCRIPTION.lastPaymentDate}</div>
+                    <div className="stat-desc">{DUMMY_SUBSCRIPTION.lastPaymentAmount}</div>
+                  </div>
+                </div>
+                {/* Payment History */}
+                <table className="table table-pin-rows bg-neutral-content">
+                  <thead className="font-quicksand text-warning-content">
+                    <tr className="bg-warning">
+                      <th>Purchase Date</th>
+                      <th>Effective Date</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-nunito-sans">
+                    {DUMMY_SUBSCRIPTION.history.map((row, idx) => (
+                      <tr key={idx} className={row.status === 'Failed' ? 'bg-error-content' : ''}>
+                        <td>{row.purchase}</td>
+                        <td>{row.effective}</td>
+                        <td>{row.amount}</td>
+                        <td className={row.status === 'Failed' ? 'text-error' : 'text-success'}>{row.status}</td>
                       </tr>
-                    </thead>
-                    <tbody className="font-nunito-sans">
-                      {DUMMY_SUBSCRIPTION.history.map((row, idx) => (
-                        <tr key={idx} className={row.status === 'Failed' ? 'bg-error-content' : (row.status === 'Paid' && idx === 0 ? 'bg-succ' : '')}>
-                          <td>{row.purchase}</td>
-                          <td>{row.effective}</td>
-                          <td>{row.amount}</td>
-                          <td className={row.status === 'Failed' ? 'text-error' : 'text-success'}>{row.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                    ))}
+                  </tbody>
+                </table>
+                {/* Log out */}
+                <div className="mt-6 flex justify-end">
+                  <button className="btn btn-error btn-soft" onClick={handleLogout}>Log Out</button>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </div>v>
 
-        {/* Password Change Modal */}
-        {showPasswordModal && (
-          <div className="modal modal-open">
-            <div className="modal-box rounded-2xl max-w-sm border border-base-300">
-              <h2 className="text-lg font-quicksand font-black mb-2">Change Password</h2>
-              <form onSubmit={handlePasswordChange}>
-                <label className="label text-xs font-quicksand">Current Password</label>
-                <input
-                  type="password"
-                  className="input input-bordered w-full font-nunito-sans"
-                  value={pwForm.current}
-                  onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
-                  autoComplete="current-password"
-                  required
-                />
-                <label className="label text-xs font-quicksand mt-2">New Password</label>
-                <input
-                  type="password"
-                  className="input input-bordered w-full font-nunito-sans"
-                  value={pwForm.new1}
-                  onChange={e => setPwForm(f => ({ ...f, new1: e.target.value }))}
-                  autoComplete="new-password"
-                  required
-                />
-                <label className="label text-xs font-quicksand mt-2">Confirm New Password</label>
-                <input
-                  type="password"
-                  className="input input-bordered w-full font-nunito-sans"
-                  value={pwForm.new2}
-                  onChange={e => setPwForm(f => ({ ...f, new2: e.target.value }))}
-                  autoComplete="new-password"
-                  required
-                />
-                {pwStatus.message && (
-                  <div className={`alert py-1 mt-2 alert-${pwStatus.type}`}>
-                    <span>{pwStatus.message}</span>
-                  </div>
-                )}
-                <div className="flex justify-end space-x-2 mt-6">
-                  <button
-                    className="btn btn-outline btn-error"
-                    type="button"
-                    onClick={closePasswordModal}
-                    disabled={pwLoading}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className={`btn btn-primary${pwLoading ? " loading" : ""}`}
-                    type="submit"
-                    disabled={pwLoading}
-                  >
-                    Change Password
-                  </button>
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className="modal modal-open">
+          <div className="modal-box rounded-2xl max-w-sm border border-base-300">
+            <h2 className="text-lg font-quicksand font-black mb-2">Change Password</h2>
+            <form onSubmit={handlePasswordChange}>
+              <label className="label text-xs font-quicksand">Current Password</label>
+              <input type="password" className="input input-bordered w-full font-nunito-sans" value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} autoComplete="current-password" required />
+              <label className="label text-xs font-quicksand mt-2">New Password</label>
+              <input type="password" className="input input-bordered w-full font-nunito-sans" value={pwForm.new1} onChange={e => setPwForm(f => ({ ...f, new1: e.target.value }))} autoComplete="new-password" required />
+              <label className="label text-xs font-quicksand mt-2">Confirm New Password</label>
+              <input type="password" className="input input-bordered w-full font-nunito-sans" value={pwForm.new2} onChange={e => setPwForm(f => ({ ...f, new2: e.target.value }))} autoComplete="new-password" required />
+              {pwStatus.message && (
+                <div className={`alert py-1 mt-2 alert-${pwStatus.type}`}>
+                  <span>{pwStatus.message}</span>
                 </div>
-              </form>
-            </div>
-            <div className="modal-backdrop" onClick={closePasswordModal} />
+              )}
+              <div className="flex justify-end space-x-2 mt-6">
+                <button className="btn btn-outline btn-error" type="button" onClick={closePasswordModal} disabled={pwLoading}>Cancel</button>
+                <button className={`btn btn-primary${pwLoading ? " loading" : ""}`} type="submit" disabled={pwLoading}>Change Password</button>
+              </div>
+            </form>
           </div>
-        )}
-      </div>
+          <div className="modal-backdrop" onClick={closePasswordModal} />
+        </div>
+      )}
     </div>
   );
 }

@@ -200,7 +200,7 @@ function Inventory() {
 
   // ---- FIX: Unified structure and spacing ----
   return (
-    <div className="min-h-screen flex flex-col w-full bg-base-100">
+    <div className="relative w-full min-h-screen bg-base-100 flex flex-col">
       <InventoryHeader
         onAdd={() => setShowModal(true)}
         itemCount={filtered.length}
@@ -223,7 +223,7 @@ function Inventory() {
       />
 
       {/* FIX: Standardize padding top and bottom */}
-      <main className="flex-1 px-4 pb-24 pt-4">
+      <main className="flex-1 px-4 pb-24">
         <table className="table w-full table-pin-rows">
           <colgroup>
             <col style={{ width: "4rem" }} />

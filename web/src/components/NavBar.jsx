@@ -4,34 +4,26 @@ import ChangePassword from '../assets/icons/changePassword.svg?react';
 import Profile from '../assets/icons/person.svg?react';
 import Logout from '../assets/icons/logout.svg?react';
 import Settings from '../assets/icons/settings.svg?react';
+import UserIcon from '../assets/icons/circle-user-regular.svg?react';
 
 function NavBar() {
     return (
-        <div className="navbar bg-primary-content shadow-md">
+        <div className="navbar bg-primary">
             <div className="flex-1">
-                <a className="btn btn-ghost btn-disabled font-black font-quicksand text-xl text-primary">Lunch Box</a>
+                <a className="btn btn-ghost font-quicksand text-primary-content text-2xl font-bold">LunchBox</a>
             </div>
-            <div className='flex-none font-quicksand'>
-                <button className="btn btn-ghost">
-                    <HomeIcon className="w-6 h-6 text-secondary" />
-                    <span className="ml-2 font-black text-primary">Home</span>
-                </button>
-                <button className="btn btn-ghost">
-                    <ChangePassword className="w-6 h-6 text-secondary" />
-                    <span className="ml-2 font-black text-primary">Change Password</span>
-                </button>
-                <button className="btn btn-ghost">
-                    <Profile className="w-6 h-6 text-secondary" />
-                    <span className="ml-2 font-black text-primary">Profile</span>
-                </button>
-                <button className="btn btn-ghost">
-                    <Logout className="w-6 h-6 text-secondary" />
-                    <span className="ml-2 font-black text-primary">Logout</span>
-                </button>
-                <button className="btn btn-ghost">
-                    <Settings className="w-6 h-6 text-secondary" />
-                    <span className="ml-2 font-black text-primary">Settings</span>
-                </button>
+            <div className="flex gap-2">
+                <input type="text" placeholder="Search" className="input input-bordered w-24 md:w-auto" />
+                <div className="dropdown dropdown-end">
+                    <div tabIndex={0} className="btn btn-info btn-circle avatar">
+                        <UserIcon className="w-6 h-6 text-info-content" />
+                    </div>
+                    <ul tabIndex={0} className="menu menu-compact dropdown-content glass mt-6 p-2 rounded-box w-52 font-nunito-sans font-black">
+                        <li><a className="justify-between">Profile</a></li>
+                        <li><a>Settings</a></li>
+                        <li><a>Logout</a></li>
+                    </ul>
+                </div>
             </div>
         </div>
     );

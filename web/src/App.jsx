@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import ExpiredInventoryPage from './pages/ExpiredReport.jsx';
 import Inventory from './pages/Inventory';
 import ShoppingList from './pages/ShoppingList';
@@ -9,118 +9,32 @@ import ManageCategories from './pages/masterdata/ManageCategories';
 import ManageLocations from './pages/masterdata/ManageLocations';
 import ManageUnits from './pages/masterdata/ManageUnits';
 import ManageStores from './pages/masterdata/ManageStores';
-import FloatingDock from './components/FloatingDock.jsx';
-import { AuthProvider } from './context/AuthProvider';
-import { ExpiredItemsProvider } from './context/ExpiredItemsContext'; // <-- Add this if not already
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import { AuthProvider } from './context/AuthProvider';
+import { ExpiredItemsProvider } from './context/ExpiredItemsContext';
 
 function AppRoutes() {
-  const location = useLocation();
-  const hideDock = ['/login', '/register'].includes(location.pathname);
-
   return (
-    <>
-      <main className="w-full min-h-screen bg-base-100">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          {/* EXPIRED REPORT at /expired-report */}
-          <Route
-            path="/expired-report"
-            element={
-              <ProtectedRoute>
-                <ExpiredInventoryPage />
-              </ProtectedRoute>
-            }
-          />
-          {/* Optionally, you can add a real dashboard at "/" */}
-          {/* <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <DashboardOrLandingPage />
-              </ProtectedRoute>
-            }
-          /> */}
-          <Route
-            path="/inventory"
-            element={
-              <ProtectedRoute>
-                <Inventory />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/shopping-list"
-            element={
-              <ProtectedRoute>
-                <ShoppingList />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/recipes"
-            element={
-              <ProtectedRoute>
-                <Recipes />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings/products"
-            element={
-              <ProtectedRoute>
-                <ManageProducts />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings/categories"
-            element={
-              <ProtectedRoute>
-                <ManageCategories />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings/locations"
-            element={
-              <ProtectedRoute>
-                <ManageLocations />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings/units"
-            element={
-              <ProtectedRoute>
-                <ManageUnits />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings/stores"
-            element={
-              <ProtectedRoute>
-                <ManageStores />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </main>
-      {/* Only show dock when NOT on login/register */}
-      {!hideDock && <FloatingDock />}
-    </>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+
+      <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+        <Route path="/inventory" element={<Inventory />} />
+        <Route path="/shopping-list" element={<ShoppingList />} />
+        <Route path="/recipes" element={<Recipes />} />
+        <Route path="/expired-report" element={<ExpiredInventoryPage />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/settings/products" element={<ManageProducts />} />
+        <Route path="/settings/categories" element={<ManageCategories />} />
+        <Route path="/settings/locations" element={<ManageLocations />} />
+        <Route path="/settings/units" element={<ManageUnits />} />
+        <Route path="/settings/stores" element={<ManageStores />} />
+      </Route>
+    </Routes>
   );
 }
 

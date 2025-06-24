@@ -2,12 +2,12 @@ import React from 'react';
 
 function CategoriesTable({ categories, onEdit, onDelete }) {
   return (
-    <div className="overflow-x-auto rounded-lg shadow bg-base-100">
+    <div className="overflow-x-auto rounded-lg shadow bg-neutral-content m-4">
       <table className="table table-zebra w-full">
         <thead>
-          <tr>
+          <tr className="bg-warning text-warning-content">
             <th>Category Name</th>
-            <th>Actions</th>
+            <th className="text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -21,7 +21,7 @@ function CategoriesTable({ categories, onEdit, onDelete }) {
             categories.map((category) => (
               <tr key={category.id}>
                 <td>{category.name}</td>
-                <td className="flex space-x-2">
+                <td className="flex justify-end space-x-2">
                   <button
                     className="btn btn-xs btn-primary"
                     onClick={() => onEdit(category)}

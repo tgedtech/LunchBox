@@ -72,8 +72,21 @@ function ManageLocations() {
   };
 
   return (
-    <div className="p-4 pb-24">
-      <MasterDataHeader title="Manage Locations" onAdd={handleAddClick} />
+    <div className="w-full pb-24">
+      {/* Header for the page */}
+      <div className="bg-warning min-h-15">
+        <div className="flex justify-between">
+          <h1 className="font-nunito-sans font-black text-xl text-warning-content p-4">Manage Locations</h1>
+          <div className="flex justify-end gap-1 pr-1">
+            <button
+              className="btn btn-primary btn-md font-nunito-sans font-bold rounded-lg m-2"
+              onClick={handleAddClick}
+            >
+              + Add
+            </button>
+          </div>
+        </div>
+      </div>    
 
       {loading ? (
         <p>Loading locations...</p>
