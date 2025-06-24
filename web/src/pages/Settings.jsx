@@ -276,8 +276,7 @@ function Settings() {
             </div>
           </div>
         </div>
-      </div>v>
-
+      </div>
       {/* Password Modal */}
       {showPasswordModal && (
         <div className="modal modal-open">
