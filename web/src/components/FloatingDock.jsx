@@ -1,20 +1,17 @@
 import React from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import RecipesIcon from '../assets/icons/books.vertical 1.svg?react';
 import InventoryIcon from '../assets/icons/shippingbox 1.svg?react';
 import ShoppingListIcon from '../assets/icons/cart 1.svg?react';
 import ExpiredIcon from '../assets/icons/expired.svg?react';
 import SettingsIcon from '../assets/icons/settings.svg?react';
-import useAuth from '../hooks/useAuth';
+import { useExpiredItems } from '../context/ExpiredItemsContext';
 
 const FloatingDock = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { expiredCount } = useExpiredItems();
 
   const navLinkClass =
     'flex flex-col items-center transition-colors duration-200 text-base-content hover:text-primary';
-
   const activeClass = 'text-primary font-semibold';
 
   return (
@@ -25,7 +22,7 @@ const FloatingDock = () => {
         borderColor: 'var(--glass-border-light)',
       }}
     >
-            <NavLink to="/recipes" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
+      <NavLink to="/recipes" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
         <RecipesIcon className="w-6 h-6 mb-1" />
         <span className="text-xs">Recipes</span>
       </NavLink>
@@ -33,11 +30,12 @@ const FloatingDock = () => {
         <InventoryIcon className="w-6 h-6 mb-1" />
         <span className="text-xs">Inventory</span>
       </NavLink>
-      {/* I don't want this NavLink (Expired Report) to be visible unless the report has actual data in it */}
-      <NavLink to="/" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
-        <ExpiredIcon className="w-6 h-6 mb-1" />
-        <span className="text-xs">Expired Items</span>
-      </NavLink>
+      {expiredCount > 0 && (
+        <NavLink to="/expired-report" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
+          <ExpiredIcon className="w-6 h-6 mb-1" />
+          <span className="text-xs">Expired Items</span>
+        </NavLink>
+      )}
       <NavLink to="/shopping-list" className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : ''}`}>
         <ShoppingListIcon className="w-6 h-6 mb-1" />
         <span className="text-xs">Shopping List</span>

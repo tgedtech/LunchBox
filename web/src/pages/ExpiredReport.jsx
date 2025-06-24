@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ActionModal from '../components/inventory/ActionModal';
 import axios from '../utils/axiosInstance';
 import shoppingListService from '../services/shoppingListService';
+import { useNavigate } from 'react-router-dom';
 
 function ExpiredReportPage() {
   const [expiredItems, setExpiredItems] = useState([]);
@@ -14,7 +15,9 @@ function ExpiredReportPage() {
     askAddToList: true,
   });
 
-  const fetchExpired = async () => {
+  const navigate = useNavigate();
+
+  const fetchExpired = async (redirectIfEmpty = false) => {
     try {
       const res = await axios.get('/inventory');
       const now = new Date();
@@ -22,6 +25,9 @@ function ExpiredReportPage() {
         item.expiration && new Date(item.expiration) < now
       );
       setExpiredItems(expired);
+      if (redirectIfEmpty && expired.length === 0) {
+        navigate('/inventory', { replace: true });
+      }
     } catch (err) {
       console.error('Error fetching inventory:', err);
     }
@@ -29,6 +35,7 @@ function ExpiredReportPage() {
 
   useEffect(() => {
     fetchExpired();
+    // eslint-disable-next-line
   }, []);
 
   const openActionModal = (type, item) => {
@@ -71,7 +78,7 @@ function ExpiredReportPage() {
     }
 
     closeActionModal();
-    fetchExpired();
+    await fetchExpired(true); // Pass true to enable redirect if now empty
   };
 
   return (

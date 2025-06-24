@@ -11,6 +11,7 @@ function InventoryHeader({
   categories,
   expirations,
   sortOptions,
+  showExpiredItemsButton, // New prop (should be a button or null)
 }) {
   const [showFilters, setShowFilters] = useState(false);
 
@@ -25,12 +26,11 @@ function InventoryHeader({
   };
 
   return (
-    <header className="w-full bg-secondary text-secondary-content shadow-lg flex flex-col sticky top-0 z-30" style={{ minHeight: '88px' }}>
-      <div className="flex items-center justify-between px-8 py-4">
+    <header className="w-full bg-secondary text-secondary-content shadow-lg flex items-center justify-between px-8" style={{ minHeight: '88px' }}>
         <h1 className="text-3xl font-quicksand font-bold">
           Inventory <span className="text-base font-normal text-secondary-content">({itemCount} items)</span>
         </h1>
-        <div className="flex items-center space-x-2">
+        <div className="flex gap-2">
           <button
             className="btn btn-sm btn-soft btn-primary items-center space-x-1"
             onClick={() => setShowFilters(!showFilters)}
@@ -44,7 +44,6 @@ function InventoryHeader({
             </button>
           )}
         </div>
-      </div>
       {showFilters && (
         <div className="mt-0 p-4 bg-secondary-content shadow space-y-3 border-t border-secondary">
           <div className="flex flex-wrap gap-3">
@@ -119,6 +118,7 @@ InventoryHeader.propTypes = {
   categories: PropTypes.array.isRequired,
   expirations: PropTypes.array.isRequired,
   sortOptions: PropTypes.array.isRequired,
+  showExpiredItemsButton: PropTypes.node, // Now optional node
 };
 
 export default InventoryHeader;

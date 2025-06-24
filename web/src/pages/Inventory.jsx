@@ -4,10 +4,10 @@ import shoppingListService from '../services/shoppingListService';
 import AddItemModal from '../components/inventory/AddItemModal';
 import ActionModal from '../components/inventory/ActionModal';
 import axios from '../utils/axiosInstance';
+import { useNavigate } from 'react-router-dom';
+import FloatingDock from '../components/FloatingDock';
+import { useExpiredItems } from '../context/ExpiredItemsContext';
 
-// === UTILS ===
-
-// Group inventory items by productId for the accordion/grouped view
 function groupByProduct(items) {
   const map = {};
   for (const item of items) {
@@ -18,7 +18,6 @@ function groupByProduct(items) {
   return map;
 }
 
-// Calculate expiration status flags
 function getExpirationStatus(expDate) {
   if (!expDate) return { isExpired: false, isErrorWindow: false, isWarningWindow: false };
   const now = new Date();
@@ -31,7 +30,6 @@ function getExpirationStatus(expDate) {
   return { isExpired: false, isErrorWindow: false, isWarningWindow: false };
 }
 
-// DaisyUI button coloring for remove action
 function getRemoveBtnClass(item) {
   const { isExpired, isErrorWindow, isWarningWindow } = getExpirationStatus(item.expiration);
   if (isExpired || isErrorWindow) return "btn btn-xs btn-error";
@@ -39,28 +37,20 @@ function getRemoveBtnClass(item) {
   return "btn btn-xs btn-primary";
 }
 
-// Get soonest expiration date among array of inventory items
 function getSoonestExpiration(items) {
   const valid = items.map(i => i.expiration).filter(Boolean);
   if (valid.length === 0) return null;
   return valid.map(d => new Date(d)).sort((a, b) => a - b)[0];
 }
 
-// === FILTERING & SORTING LOGIC ===
-
-// Applies all filters from filter UI to the array of inventory items
 function applyFilters(items, filters) {
   return items.filter(item => {
-    // Name search
     if (filters.search && !item.product?.name?.toLowerCase().includes(filters.search.toLowerCase()))
       return false;
-    // Location (exact match)
     if (filters.location && item.location?.name !== filters.location)
       return false;
-    // Category (exact match)
     if (filters.category && item.product?.category?.name !== filters.category)
       return false;
-    // Expiration logic
     if (filters.expiration) {
       const now = new Date();
       const exp = item.expiration ? new Date(item.expiration) : null;
@@ -76,7 +66,6 @@ function applyFilters(items, filters) {
   });
 }
 
-// Sorting by user-chosen column
 function applySort(items, sortBy) {
   if (!sortBy) return items;
   const sorted = [...items];
@@ -86,8 +75,6 @@ function applySort(items, sortBy) {
   if (sortBy === "Price") sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
   return sorted;
 }
-
-// === MAIN COMPONENT ===
 
 function Inventory() {
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -115,11 +102,19 @@ function Inventory() {
   });
   const [expandedProducts, setExpandedProducts] = useState({});
 
-  // Fetch inventory & master data on mount
+  const navigate = useNavigate();
+  const { expiredCount, refreshExpired } = useExpiredItems();
+
+  const now = new Date();
+  const validItems = inventoryItems.filter(item =>
+    !item.expiration || new Date(item.expiration) >= now
+  );
+
   const fetchInventory = async () => {
     try {
       const res = await axios.get('/inventory');
       setInventoryItems(res.data);
+      refreshExpired();
     } catch (err) {
       console.error('Error fetching inventory:', err);
     }
@@ -149,7 +144,6 @@ function Inventory() {
     fetchMasterData();
   }, []);
 
-  // Accordion logic for product groups
   const toggleExpand = (productId) => {
     setExpandedProducts((prev) => ({
       ...prev,
@@ -157,7 +151,6 @@ function Inventory() {
     }));
   };
 
-  // Action modal open/close
   const openActionModal = (type, item, options = {}) => {
     setActionModal({
       open: true,
@@ -177,11 +170,9 @@ function Inventory() {
     askAddToList: false,
   });
   const handleActionConfirm = async (actionData) => {
-    // actionData: { quantity }
     const { quantity = 1 } = actionData || {};
     const { actionType, item } = actionModal;
 
-    // Always add to shopping list for 'addToList'
     if (actionType === 'addToList' && item) {
       try {
         await shoppingListService.addItem({
@@ -189,13 +180,12 @@ function Inventory() {
           name: item.product?.name || item.name,
           quantity: quantity,
           unit: item.unit || item.product?.defaultUnit || '',
-          categoryId: item.product?.categoryId || '', // map to string if needed
-          notes: '', // Optional: surface note field if needed
-          storeId: item.storeId || '', // add if relevant
+          categoryId: item.product?.categoryId || '',
+          notes: '',
+          storeId: item.storeId || '',
         });
       } catch (err) {
         console.error('Failed to add to shopping list:', err);
-        // You can surface an error/toast here if desired
       }
     }
 
@@ -203,12 +193,14 @@ function Inventory() {
     fetchInventory();
   };
 
-  // === FILTERING & GROUPING ===
-  const filtered = applySort(applyFilters(inventoryItems, filters), filters.sortBy);
+  const filtered = applySort(applyFilters(validItems, filters), filters.sortBy);
   const productGroups = groupByProduct(filtered);
 
+  const showExpiredBtnInHeader = expiredCount === 0;
+
+  // ---- FIX: Unified structure and spacing ----
   return (
-    <div className="w-full min-h-screen bg-base-100">
+    <div className="min-h-screen flex flex-col w-full bg-base-100">
       <InventoryHeader
         onAdd={() => setShowModal(true)}
         itemCount={filtered.length}
@@ -218,10 +210,20 @@ function Inventory() {
         categories={categories.map(c => c.name)}
         expirations={['Expired', 'Expiring Soon', 'Valid']}
         sortOptions={['Name', 'Quantity', 'Expiration', 'Price']}
+        showExpiredItemsButton={
+          showExpiredBtnInHeader ? (
+            <button
+              className="btn btn-xs btn-outline btn-accent"
+              onClick={() => navigate('/expired-report')}
+            >
+              Expired Items
+            </button>
+          ) : null
+        }
       />
 
-      {/* Inventory Table - Grouped By Product */}
-      <div className="p-4 pb-24">
+      {/* FIX: Standardize padding top and bottom */}
+      <main className="flex-1 px-4 pb-24 pt-4">
         <table className="table w-full table-pin-rows">
           <colgroup>
             <col style={{ width: "4rem" }} />
@@ -234,10 +236,7 @@ function Inventory() {
               <th></th>
               <th>Item Name</th>
               <th>Total Qty</th>
-              <th>
-                {/* Keep column header consistent. Shows soonest exp date or "Details" */}
-                Details / Soonest Expiration
-              </th>
+              <th>Details / Soonest Expiration</th>
             </tr>
           </thead>
           <tbody>
@@ -246,7 +245,6 @@ function Inventory() {
               const isExpanded = expandedProducts[productId];
               const totalQty = instances.reduce((sum, i) => sum + (i.quantity || 0), 0);
               const expiringSoon = instances.some(i => getExpirationStatus(i.expiration).isWarningWindow);
-              const hasExpired = instances.some(i => getExpirationStatus(i.expiration).isExpired);
 
               const soonestExp = getSoonestExpiration(instances);
 
@@ -254,11 +252,9 @@ function Inventory() {
                 <React.Fragment key={productId}>
                   <tr
                     className={
-                      hasExpired
-                        ? "bg-error/20 text-error cursor-pointer"
-                        : expiringSoon
-                          ? "bg-warning/20 text-warning cursor-pointer"
-                          : "cursor-pointer"
+                      expiringSoon
+                        ? "bg-warning/20 text-warning cursor-pointer"
+                        : "cursor-pointer"
                     }
                     onClick={() => toggleExpand(productId)}
                   >
@@ -278,7 +274,6 @@ function Inventory() {
                     </td>
                     <td className="font-quicksand font-bold">{product?.name}</td>
                     <td>{totalQty} {instances[0]?.unit}</td>
-                    {/* Details: when collapsed, show soonest expiration; expanded, column for lot breakdown */}
                     <td className="align-middle">
                       {!isExpanded ? (
                         soonestExp
@@ -290,7 +285,6 @@ function Inventory() {
                       ) : null}
                     </td>
                   </tr>
-                  {/* Expanded: fixed 4-col layout, lots with details and actions */}
                   {isExpanded && (
                     <>
                       <tr className="bg-base-200 text-xs">
@@ -305,11 +299,9 @@ function Inventory() {
                           <tr
                             key={item.id}
                             className={
-                              expStatus.isExpired
-                                ? "bg-error/10 text-error"
-                                : expStatus.isWarningWindow
-                                  ? "bg-warning/10 text-warning"
-                                  : ""
+                              expStatus.isWarningWindow
+                                ? "bg-warning/10 text-warning"
+                                : ""
                             }
                           >
                             <td></td>
@@ -371,9 +363,8 @@ function Inventory() {
             })}
           </tbody>
         </table>
-      </div>
+      </main>
 
-      {/* Add Item Modal */}
       <AddItemModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
@@ -389,7 +380,6 @@ function Inventory() {
         refreshMasterData={fetchMasterData}
       />
 
-      {/* Universal Action Modal */}
       <ActionModal
         isOpen={actionModal.open}
         onClose={closeActionModal}
@@ -401,6 +391,8 @@ function Inventory() {
         askAddToList={actionModal.askAddToList}
         updateInventoryItems={() => { }}
       />
+
+      <FloatingDock />
     </div>
   );
 }

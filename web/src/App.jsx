@@ -11,6 +11,7 @@ import ManageUnits from './pages/masterdata/ManageUnits';
 import ManageStores from './pages/masterdata/ManageStores';
 import FloatingDock from './components/FloatingDock.jsx';
 import { AuthProvider } from './context/AuthProvider';
+import { ExpiredItemsProvider } from './context/ExpiredItemsContext'; // <-- Add this if not already
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -25,14 +26,24 @@ function AppRoutes() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          {/* EXPIRED REPORT at /expired-report */}
           <Route
-            path="/"
+            path="/expired-report"
             element={
               <ProtectedRoute>
                 <ExpiredInventoryPage />
               </ProtectedRoute>
             }
           />
+          {/* Optionally, you can add a real dashboard at "/" */}
+          {/* <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <DashboardOrLandingPage />
+              </ProtectedRoute>
+            }
+          /> */}
           <Route
             path="/inventory"
             element={
@@ -116,11 +127,13 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <div data-theme="fieldstone" className="min-h-screen bg-base-100 text-base-content">
-        <Router>
-          <AppRoutes />
-        </Router>
-      </div>
+      <ExpiredItemsProvider>
+        <div data-theme="fieldstone" className="min-h-screen bg-base-100 text-base-content">
+          <Router>
+            <AppRoutes />
+          </Router>
+        </div>
+      </ExpiredItemsProvider>
     </AuthProvider>
   );
 }
