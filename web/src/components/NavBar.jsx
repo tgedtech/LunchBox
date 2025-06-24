@@ -1,12 +1,21 @@
 import { Link } from 'react-router-dom';
-import HomeIcon from '../assets/icons/home.svg?react';
-import ChangePassword from '../assets/icons/changePassword.svg?react';
-import Profile from '../assets/icons/person.svg?react';
-import Logout from '../assets/icons/logout.svg?react';
-import Settings from '../assets/icons/settings.svg?react';
 import UserIcon from '../assets/icons/circle-user-regular.svg?react';
+import { useNavigate } from 'react-router-dom';
+import useAuth from '../hooks/useAuth';
 
 function NavBar() {
+
+    const navigate = useNavigate();
+    const { logout } = useAuth();
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
+
+    const handleGoSettings = () => {
+        navigate('/settings');
+    };
     return (
         <div className="navbar bg-primary">
             <div className="flex-1">
@@ -19,9 +28,12 @@ function NavBar() {
                         <UserIcon className="w-6 h-6 text-info-content" />
                     </div>
                     <ul tabIndex={0} className="menu menu-compact dropdown-content glass mt-6 p-2 rounded-box w-52 font-nunito-sans font-black">
-                        <li><a className="justify-between">Profile</a></li>
-                        <li><a>Settings</a></li>
-                        <li><a>Logout</a></li>
+                        <li>
+                            <Link to="/settings">Settings</Link>
+                        </li>
+                        <li>
+                            <button type="button" onClick={handleLogout}>Logout</button>
+                        </li>
                     </ul>
                 </div>
             </div>
