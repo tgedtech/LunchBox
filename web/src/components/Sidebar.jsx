@@ -25,7 +25,7 @@ function Sidebar() {
           <h2 className="menu-title text-primary font-quicksand font-bold">Cooking</h2>
           <ul>
             <li><NavLink to="/recipes" className={linkClass}>Recipes</NavLink></li>
-            {/* Add meal planning if needed */}
+            <li><NavLink to="/recipes" className={linkClass}>Meal Planning</NavLink></li>
           </ul>
         </li>
         <li>
