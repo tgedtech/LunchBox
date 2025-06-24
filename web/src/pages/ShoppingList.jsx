@@ -149,10 +149,10 @@ function ShoppingList() {
         </div>
 
         {/* Shopping list table */}
-        <div className="bg-base-100 rounded-lg shadow overflow-x-auto">
+        <div className="bg-neutral-content rounded-lg shadow overflow-x-auto">
           <table className="table w-full text-sm">
             <thead>
-              <tr>
+              <tr className="bg-neutral text-neutral-content">
                 <th></th>
                 <th>Item</th>
                 <th>Qty</th>
@@ -245,7 +245,7 @@ function ShoppingList() {
                           </button>
                         ) : (
                           <button
-                            className="btn btn-xs btn-outline btn-primary"
+                            className="btn btn-xs btn-outline btn-accent"
                             onClick={() => {
                               setEditingId(item.id);
                               setEditingValue(item.quantity.toString());

@@ -83,20 +83,19 @@ function ExpiredReportPage() {
 
   return (
     <div className="w-full min-h-screen bg-base-100">
-      {/* Full-width sticky header */}
-      <header className="w-full bg-error text-error-content shadow-lg flex items-center px-8 py-4 sticky top-0 z-30" style={{ minHeight: '88px' }}>
-        <h1 className="text-3xl font-quicksand font-black flex-1">
-          Expired Inventory
-        </h1>
-        {/* (Add additional actions here if you want in future) */}
-      </header>
+      {/* Header for the page */}
+      <div className="bg-error min-h-15">
+        <div className="flex justify-between">
+          <h1 className="text-xl font-quicksand font-bold text-error-content p-4">Expired Inventory</h1>
+        </div>
+      </div>
 
       {/* Main content container */}
       <div className="p-4 pb-24">
         <div className="overflow-x-auto rounded-lg shadow bg-base-100 font-nunito-sans">
           <table className="table w-full table-pin-rows">
             <thead>
-              <tr>
+              <tr className="bg-error text-error-content">
                 <th>Actions</th>
                 <th>Item Name</th>
                 <th>Quantity</th>

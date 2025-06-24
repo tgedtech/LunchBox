@@ -133,6 +133,7 @@ function Settings() {
   {/* Main Content Area */ }
   return (
     <div className="w-full pb-24">
+      {/* Contextual Menu */}
       <div className="bg-warning min-h-15">
         <div className="flex justify-between">
           <h1 className="font-nunito-sans font-black text-xl text-warning-content p-4">Settings</h1>

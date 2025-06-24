@@ -26,11 +26,12 @@ function InventoryHeader({
   };
 
   return (
-    <header className="w-full bg-secondary text-secondary-content shadow-lg flex items-center justify-between px-8" style={{ minHeight: '88px' }}>
-        <h1 className="text-3xl font-quicksand font-bold">
+    <header className="bg-secondary min-h-15">
+      <div className="flex justify-between">
+        <h1 className="text-xl font-quicksand text-secondary-content font-bold p-4">
           Inventory <span className="text-base font-normal text-secondary-content">({itemCount} items)</span>
         </h1>
-        <div className="flex gap-2">
+        <div className="flex gap-1 pr-1 m-3">
           <button
             className="btn btn-sm btn-soft btn-primary items-center space-x-1"
             onClick={() => setShowFilters(!showFilters)}
@@ -44,8 +45,9 @@ function InventoryHeader({
             </button>
           )}
         </div>
+      </div>
       {showFilters && (
-        <div className="mt-0 p-4 bg-secondary-content shadow space-y-3 border-t border-secondary">
+        <div className="mt-0 p-4 bg-secondary-content space-y-3 border-t border-secondary">
           <div className="flex flex-wrap gap-3">
             <input
               type="text"

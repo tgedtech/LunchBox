@@ -5,7 +5,6 @@ import AddItemModal from '../components/inventory/AddItemModal';
 import ActionModal from '../components/inventory/ActionModal';
 import axios from '../utils/axiosInstance';
 import { useNavigate } from 'react-router-dom';
-import FloatingDock from '../components/FloatingDock';
 import { useExpiredItems } from '../context/ExpiredItemsContext';
 
 function groupByProduct(items) {
@@ -196,12 +195,11 @@ function Inventory() {
   const filtered = applySort(applyFilters(validItems, filters), filters.sortBy);
   const productGroups = groupByProduct(filtered);
 
-  const showExpiredBtnInHeader = expiredCount === 0;
-
   // ---- FIX: Unified structure and spacing ----
   return (
-    <div className="relative w-full min-h-screen bg-base-100 flex flex-col">
-      <InventoryHeader
+    <div className="w-full pb-24">
+      {/* Contextual Menu */}
+        <InventoryHeader
         onAdd={() => setShowModal(true)}
         itemCount={filtered.length}
         filters={filters}
@@ -210,21 +208,11 @@ function Inventory() {
         categories={categories.map(c => c.name)}
         expirations={['Expired', 'Expiring Soon', 'Valid']}
         sortOptions={['Name', 'Quantity', 'Expiration', 'Price']}
-        showExpiredItemsButton={
-          showExpiredBtnInHeader ? (
-            <button
-              className="btn btn-xs btn-outline btn-accent"
-              onClick={() => navigate('/expired-report')}
-            >
-              Expired Items
-            </button>
-          ) : null
-        }
       />
 
       {/* FIX: Standardize padding top and bottom */}
       <main className="flex-1 px-4 pb-24">
-        <table className="table w-full table-pin-rows">
+        <table className="table w-full table-pin-rows mt-4 bg-neutral-content">
           <colgroup>
             <col style={{ width: "4rem" }} />
             <col style={{ width: "32%" }} />
@@ -232,7 +220,7 @@ function Inventory() {
             <col style={{ width: "36%" }} />
           </colgroup>
           <thead>
-            <tr>
+            <tr className="bg-secondary text-secondary-content">
               <th></th>
               <th>Item Name</th>
               <th>Total Qty</th>
@@ -289,7 +277,7 @@ function Inventory() {
                     <>
                       <tr className="bg-base-200 text-xs">
                         <th></th>
-                        <th>Lot Details</th>
+                        <th>Location</th>
                         <th>Qty / Open</th>
                         <th>Store / Exp / Price / Actions</th>
                       </tr>
@@ -346,7 +334,7 @@ function Inventory() {
                                   </button>
                                 )}
                                 <button
-                                  className="btn btn-xs btn-success"
+                                  className="btn btn-xs btn-accent text-accent-content"
                                   onClick={e => { e.stopPropagation(); openActionModal('addToList', item); }}
                                 >
                                   Add to List
@@ -392,7 +380,6 @@ function Inventory() {
         updateInventoryItems={() => { }}
       />
 
-      <FloatingDock />
     </div>
   );
 }
