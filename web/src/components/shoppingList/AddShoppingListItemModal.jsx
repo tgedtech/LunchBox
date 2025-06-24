@@ -8,9 +8,12 @@ const EMPTY_ROW = {
   unit: '',
   name: '',
   notes: '',
-  categoryId: '',   // Always the ID, not name
-  storeId: '',      // Always the ID, not name
+  categoryId: '',
+  storeId: '',
   productId: null,
+  // track if the unit/category was manually changed
+  _unitManual: false,
+  _categoryManual: false,
 };
 
 const DEFAULT_ROWS = 7;
@@ -23,7 +26,6 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
   const [suggestions, setSuggestions] = useState(Array(DEFAULT_ROWS).fill([]));
   const inputRefs = useRef([]);
 
-  // Reset rows/suggestions when modal is opened
   useEffect(() => {
     if (isOpen) {
       setRows(Array(DEFAULT_ROWS).fill().map(() => ({ ...EMPTY_ROW })));
@@ -34,48 +36,77 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
 
   if (!isOpen) return null;
 
-  // Handle changes to any input cell in a row
-  const handleChange = (idx, field, value) => {
-    setRows(rows =>
-      rows.map((row, i) =>
-        i !== idx
-          ? row
-          : field === 'name'
-            ? { ...row, name: value, productId: null } // Reset productId if user changes name
-            : { ...row, [field]: value }
-      )
+  // === Helper: Find product by name or id ===
+  const findProduct = (val) =>
+    products.find(
+      (p) => p.id === val || p.name.trim().toLowerCase() === (val || '').trim().toLowerCase()
     );
 
-    // Autocomplete for product name
-    if (field === 'name' && value.length >= 2) {
-      const q = value.trim().toLowerCase();
-      setSuggestions(suggestions =>
-        suggestions.map((arr, i) =>
-          i === idx
-            ? products.filter(p => p.name.toLowerCase().includes(q)).slice(0, 8)
-            : arr
-        )
-      );
-    } else if (field === 'name') {
-      setSuggestions(suggestions => suggestions.map((arr, i) => (i === idx ? [] : arr)));
-    }
+  // === Main handler for input changes ===
+  const handleChange = (idx, field, value) => {
+    setRows(rows =>
+      rows.map((row, i) => {
+        if (i !== idx) return row;
+
+        // Typing product name always clears the productId, disables autofill unless suggestion is picked
+        if (field === 'name') {
+          // Show suggestions if at least 2 chars, else clear
+          if (value.length >= 2) {
+            const q = value.trim().toLowerCase();
+            setSuggestions(suggestions =>
+              suggestions.map((arr, j) =>
+                j === idx
+                  ? products.filter(p => p.name.toLowerCase().includes(q)).slice(0, 8)
+                  : arr
+              )
+            );
+          } else {
+            setSuggestions(suggestions => suggestions.map((arr, j) => (j === idx ? [] : arr)));
+          }
+          return {
+            ...row,
+            name: value,
+            productId: null,
+            // If user types, don't overwrite their previous manual unit/category changes
+            // _unitManual/categoryManual remains the same
+          };
+        }
+
+        // Manual override for unit/category
+        if (field === 'unit') {
+          return { ...row, unit: value, _unitManual: true };
+        }
+        if (field === 'categoryId') {
+          return { ...row, categoryId: value, _categoryManual: true };
+        }
+
+        // Normal update for other fields
+        return { ...row, [field]: value };
+      })
+    );
   };
 
-  // When user picks a suggestion, fill row with product fields
+  // === User selects a suggestion: autofill unit/category, but only if user hasn't manually overridden ===
   const handleSuggestionSelect = (idx, prod) => {
     setRows(rows =>
-      rows.map((row, i) =>
-        i === idx
-          ? {
-            ...row,
-            name: prod.name,
-            productId: prod.id,
-            unit: prod.defaultUnit || '',
-            categoryId: prod.categoryId || '',
-            // Don't pre-fill store
-          }
-          : row
-      )
+      rows.map((row, i) => {
+        if (i !== idx) return row;
+        // Autofill unit/category only if NOT manually set by user
+        return {
+          ...row,
+          name: prod.name,
+          productId: prod.id,
+          unit: row._unitManual
+            ? row.unit
+            : prod.defaultUnitType?.name ||
+            prod.defaultUnit || // fallback for string field
+            '',
+          categoryId: row._categoryManual
+            ? row.categoryId
+            : prod.category?.id || '',
+          // Retain flags so future manual change is respected
+        };
+      })
     );
     setSuggestions(suggestions => suggestions.map((arr, i) => (i === idx ? [] : arr)));
     setTimeout(() => {
@@ -83,7 +114,7 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
     }, 0);
   };
 
-  // Submits all filled rows to backend via service, then closes
+  // === Form submission: filter out empty, send to API ===
   const handleSubmit = async () => {
     setError('');
     const toAdd = rows.filter(row => row.name && row.name.trim());
@@ -115,54 +146,43 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
     }
   };
 
-  // --- JSX ---
   return (
     <div className="modal modal-open" aria-modal="true" tabIndex={0}>
       <div className="modal-box max-w-[700px] border border-base-300 rounded-2xl bg-base-200 shadow-xl p-4">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold">Add Items to Shopping List</h2>
+          <h2 className="text-lg font-bold font-quicksand">Add Items to Shopping List</h2>
           <button onClick={onClose} className="btn btn-sm btn-ghost">✕</button>
         </div>
-        <table className="table w-full text-xs table-fixed">
-          <thead>
+        <table className="table w-full table-xs table-fixed">
+          <thead className='font-quicksand text-base-content font-bold'>
             <tr>
-              <th className="w-10">Amt</th>
-              <th className="w-14">Unit</th>
-              <th className="w-40">Title <span className="text-error">*</span></th>
-              <th className="w-24">Notes</th>
-              <th className="w-28">Category</th>
-              <th className="w-28">Store</th>
-              <th className="w-10 text-center">
-                <input type="checkbox" className="checkbox checkbox-xs mx-auto"
-                  checked={autoSelect}
-                  onChange={e => setAutoSelect(e.target.checked)}
-                />
-              </th>
+              <th className="w-4 p-0"></th>
+              <th className="w-10 px-1">Amt</th>
+              <th className="w-40 px-1">Title <span className="text-error">*</span></th>
+              <th className="w-20 px-1">Unit</th>
+              <th className="w-24 px-1">Notes</th>
+              <th className="w-20 px-1">Category</th>
+              <th className="w-20 px-1">Store</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="font-nunito-sans text-base-content">
             {rows.map((row, idx) => (
-              <tr key={idx}>
-                <td>
+              <tr key={idx} className="gap-x-1">
+                {/* Row number */}
+                <td className="p-0 text-center text-xs">{idx + 1}</td>
+                {/* Amount */}
+                <td className="px-1">
                   <input
                     type="number"
-                    className="input input-xs input-bordered w-10"
                     min={1}
+                    className="input input-xs input-bordered w-full"
                     value={row.amount}
                     onChange={e => handleChange(idx, 'amount', Math.max(1, Number(e.target.value)))}
                     placeholder="#"
                   />
                 </td>
-                <td>
-                    <StepperInput
-                    value={row.amount}
-                    min={1}
-                    onChange={v => handleChange(idx, 'amount', Math.max(1, Number(v)))}
-                    inputClass="w-12"
-                    className="min-w-[80px]"
-                  />
-                </td>
-                <td className="relative">
+                {/* Item Title with autocomplete */}
+                <td className="relative px-1">
                   <input
                     type="text"
                     className="input input-xs input-bordered w-full"
@@ -173,7 +193,7 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
                   />
                   {/* Product suggestions dropdown */}
                   {suggestions[idx]?.length > 0 && (
-                    <ul className="absolute z-20 left-0 right-0 bg-base-100 border border-base-300 rounded shadow max-h-28 overflow-y-auto text-xs">
+                    <ul className="absolute z-30 left-0 right-0 bg-base-100 border border-base-300 rounded shadow max-h-28 overflow-y-auto text-xs">
                       {suggestions[idx].map(prod => (
                         <li
                           key={prod.id}
@@ -186,7 +206,19 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
                     </ul>
                   )}
                 </td>
-                <td>
+                {/* Unit */}
+                <td className="px-1">
+                  <input
+                    type="text"
+                    className="input input-xs input-bordered w-full"
+                    value={row.unit}
+                    ref={el => (inputRefs.current[`${idx}-unit`] = el)}
+                    onChange={e => handleChange(idx, 'unit', e.target.value)}
+                    placeholder="Unit"
+                  />
+                </td>
+                {/* Notes */}
+                <td className="px-1">
                   <input
                     type="text"
                     className="input input-xs input-bordered w-full"
@@ -195,7 +227,8 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
                     placeholder="Notes"
                   />
                 </td>
-                <td>
+                {/* Category */}
+                <td className="px-1">
                   <select
                     className="select select-xs select-bordered w-full"
                     value={row.categoryId}
@@ -207,7 +240,8 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
                     ))}
                   </select>
                 </td>
-                <td>
+                {/* Store */}
+                <td className="px-1">
                   <select
                     className="select select-xs select-bordered w-full"
                     value={row.storeId}
@@ -219,7 +253,6 @@ function AddShoppingListItemModal({ isOpen, onClose, categories, stores, product
                     ))}
                   </select>
                 </td>
-                <td />
               </tr>
             ))}
           </tbody>
