@@ -3,6 +3,7 @@ import ExpiredInventoryPage from './pages/ExpiredReport.jsx';
 import Inventory from './pages/Inventory';
 import ShoppingList from './pages/ShoppingList';
 import Recipes from './pages/Recipes';
+import RecipeNew from './pages/RecipeNew.jsx';
 import Settings from './pages/Settings';
 import ManageProducts from './pages/masterdata/ManageProducts';
 import ManageCategories from './pages/masterdata/ManageCategories';
@@ -11,6 +12,7 @@ import ManageUnits from './pages/masterdata/ManageUnits';
 import ManageStores from './pages/masterdata/ManageStores';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ResetPassword from './pages/ResetPassword';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthProvider';
@@ -21,11 +23,13 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/shopping-list" element={<ShoppingList />} />
         <Route path="/recipes" element={<Recipes />} />
+        <Route path="/recipes/new" element={<RecipeNew />} />
         <Route path="/expired-report" element={<ExpiredInventoryPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/products" element={<ManageProducts />} />
@@ -42,7 +46,7 @@ function App() {
   return (
     <AuthProvider>
       <ExpiredItemsProvider>
-        <div data-theme="fieldstone" className="min-h-screen bg-base-100 text-base-content">
+        <div data-theme="nord" className="min-h-screen bg-base-100 text-base-content">
           <Router>
             <AppRoutes />
           </Router>

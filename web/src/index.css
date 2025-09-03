@@ -82,3 +82,205 @@ input[type="number"] {
   appearance: textfield;
   /* Modern browsers */
 }
+
+
+/* Fieldstone theme as raw CSS for CDN daisyUI support */
+:root[data-theme="fieldstone"] {
+  /* Custom color variables for the fieldstone theme */
+  color-scheme: light;
+  --color-base-100: oklch(0.9448 0.0029 128.49);
+  --color-base-200: oklch(0.8921 0.0046 134.85);
+  --color-base-300: oklch(0.833 0.0043 157.16);
+  --color-base-content: oklch(0.2764 0.0169 222.09);
+  --color-primary: oklch(0.3539 0.024 231.56);
+  --color-primary-content: oklch(0.9409 0.0059 239.82);
+  --color-secondary: oklch(0.6249 0.1133 39.31);
+  --color-secondary-content: oklch(0.9619 0.011 63.36);
+  --color-accent: oklch(0.6541 0.068 124.71);
+  --color-accent-content: oklch(0.9634 0.0155 126.82);
+  --color-neutral: oklch(0.6277 0.0221 234.08);
+  --color-neutral-content: oklch(0.9846 0.0017 247.84);
+  --color-info: oklch(0.6575 0.0689 204.28);
+  --color-info-content: oklch(0.9715 0.0119 209.81);
+  --color-success: oklch(0.5531 0.0666 144.61);
+  --color-success-content: oklch(0.9542 0.0159 148.41);
+  --color-warning: oklch(0.6683 0.1171 70.36);
+  --color-warning-content: oklch(0.9664 0.0256 84.59);
+  --color-error: oklch(0.4425 0.1261 15.09);
+  --color-error-content: oklch(0.9497 0.0174 17.46);
+  --color-favorite: oklch(0.7338 0.135 21.98);
+  --color-new: oklch(0.8631 0.1606 87.13);
+  --radius-selector: 0.25rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Coseli theme as raw CSS for CDN daisyUI support */
+:root[data-theme="coseli"] {
+  /* Custom color variables for the coseli theme */
+  color-scheme: light;
+  --color-base-100: oklch(0.9771 0.007 80.72);
+  /* Ivory Sand */
+  --color-base-100-content: oklch(0.3534 0.034 229.53);
+  --color-base-200: oklch(0.9384 0.017 70.53);
+  /* Warm Tan */
+  --color-base-200-content: oklch(0.3054 0.016 248.35);
+  --color-base-300: oklch(0.9014 0.019 75.31);
+  /* Warm Stone */
+  --color-base-300-content: oklch(0.3045 0.017 244.79);
+  --color-base-content: oklch(0.3534 0.034 229.53);
+  /* Night Harbor */
+  --color-base-content-content: oklch(1.0000 0.000 89.88);
+
+  --color-primary: oklch(0.6880 0.113 221.48);
+  /* River Blue */
+  --color-primary-content: oklch(1.0000 0.000 89.88);
+  --color-secondary: oklch(0.7420 0.166 44.07);
+  /* Autumn Orange */
+  --color-secondary-content: oklch(0.2655 0.058 287.45);
+  --color-accent: oklch(0.5902 0.168 350.68);
+  /* Wildflower Magenta */
+  --color-accent-content: oklch(1.0000 0.000 89.88);
+  --color-neutral: oklch(0.7994 0.013 236.67);
+  /* Granite Neutral */
+  --color-neutral-content: oklch(0.3279 0.018 225.12);
+
+  --color-info: oklch(0.7815 0.135 232.30);
+  /* Sky Blue */
+  --color-info-content: oklch(0.2707 0.024 228.66);
+  --color-success: oklch(0.7118 0.108 154.80);
+  /* Pine Green */
+  --color-success-content: oklch(1.0000 0.000 89.88);
+  --color-warning: oklch(0.8371 0.152 78.36);
+  /* Sunburst Gold */
+  --color-warning-content: oklch(0.3906 0.070 89.66);
+  --color-error: oklch(0.6493 0.169 17.44);
+  /* Berry Red */
+  --color-error-content: oklch(1.0000 0.000 89.88);
+
+  /* Special Colors */
+  --color-special-green: oklch(0.8885 0.155 130.94);
+  /* Aurora Green */
+  --color-special-green-content: oklch(0.3392 0.066 134.10);
+  --color-special-purple: oklch(0.6823 0.149 296.73);
+  /* Dusk Violet */
+  --color-special-purple-content: oklch(1.0000 0.000 89.88);
+
+  /* Radii and Sizes */
+  --radius-selector: 0.25rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+
+}
+
+/* Tailwind and daisyUI imports for local build (ignored by CDN, safe to keep for dev) */
+@import "tailwindcss";
+
+@plugin "daisyui" {
+  themes: all;
+}
+
+/* Liquid Glass utility variables */
+:root {
+  --glass-bg-light: rgba(255, 255, 255, 0.3);
+  --glass-bg-dark: rgba(0, 0, 0, 0.3);
+  --glass-border-light: rgba(255, 255, 255, 0.25);
+  --glass-border-dark: rgba(0, 0, 0, 0.25);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  --glass-saturate: 1.5;
+}
+
+/* Font Styling */
+/* Quicksand for headings and logo */
+.font-quicksand {
+  font-family: "Quicksand", sans-serif;
+  font-optical-sizing: auto;
+  font-style: normal;
+}
+
+/* Nunito Sans for main UI */
+.font-nunito-sans {
+  font-family: "Nunito Sans", sans-serif;
+  font-optical-sizing: auto;
+  font-style: normal;
+  font-variation-settings:
+    "wdth" 100,
+    "YTLC" 500;
+}
+
+/* Custom Background and Text Colors */
+
+/* Background colors */
+
+.bg-special-green {
+  background-color: var(--color-special-green);
+}
+
+.bg-special-purple {
+  background-color: var(--color-special-purple);
+}
+
+.bg-base-100-content {
+  background-color: var(--color-base-100-content);
+}
+
+.bg-base-200-content {
+  background-color: var(--color-base-200-content);
+}
+
+.bg-base-300-content {
+  background-color: var(--color-base-300-content);
+}
+
+.bg-base-content-content {
+  background-color: var(--color-base-content-content);
+}
+
+/* Text colors */
+.text-special-green {
+  color: var(--color-special-green);
+}
+
+.text-special-purple {
+  color: var(--color-special-purple);
+}
+
+.text-base-100-content {
+  color: var(--color-base-100-content);
+}
+
+.text-base-200-content {
+  color: var(--color-base-200-content);
+}
+
+.text-base-300-content {
+  color: var(--color-base-300-content);
+}
+
+.text-base-content-content {
+  color: var(--color-base-content-content);
+}
+
+/* Custom Button Colors */
+
+.btn-special-green {
+  background-color: var(--color-special-green);
+}
+
+.btn-special-purple {
+  background-color: var(--color-special-purple);
+}
+
+.btn-base-content {
+  background-color: var(--color-base-content);
+}
