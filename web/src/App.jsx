@@ -46,7 +46,7 @@ function App() {
   return (
     <AuthProvider>
       <ExpiredItemsProvider>
-        <div data-theme="nord" className="min-h-screen bg-base-100 text-base-content">
+        <div data-theme="coseli" className="min-h-screen bg-base-100 text-base-content">
           <Router>
             <AppRoutes />
           </Router>
