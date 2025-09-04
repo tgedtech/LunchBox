@@ -10,6 +10,7 @@ import categoriesRoutes from './routes/categories.js';
 import storesRoutes from './routes/stores.js';
 import unitsRoutes from './routes/units.js';
 import shoppingListRoutes from './routes/shoppingList.js';
+import recipesRoutes from './routes/recipes.js';
 
 dotenv.config();   // Load env variables first
 
@@ -21,6 +22,7 @@ app.use('/locations', locationsRoutes);
 app.use('/categories', categoriesRoutes);
 app.use('/stores', storesRoutes);
 app.use('/units', unitsRoutes);
+app.use('/recipes', recipesRoutes);
 
 // Routes
 app.use('/auth', authRoutes);
