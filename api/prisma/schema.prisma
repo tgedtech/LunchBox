@@ -18,6 +18,10 @@ model User {
   inventoryItems      InventoryItem[]
   shoppingListItems   ShoppingListItem[]
   shoppingListHistory ShoppingListItemHistory[]
+  Recipe              Recipe[]
+  RecipeCourse        RecipeCourse[]
+  RecipeCuisine       RecipeCuisine[]
+  RecipeTag           RecipeTag[]
 }
 
 model ProductCategory {
@@ -35,9 +39,10 @@ model Location {
 }
 
 model Unit {
-  id       String    @id @default(uuid())
-  name     String    @unique
-  products Product[] @relation("DefaultUnitTypeProducts")
+  id               String             @id @default(uuid())
+  name             String             @unique
+  products         Product[]          @relation("DefaultUnitTypeProducts")
+  RecipeIngredient RecipeIngredient[]
 }
 
 model Product {
@@ -56,9 +61,11 @@ model Product {
   category   ProductCategory? @relation(fields: [categoryId], references: [id])
   categoryId String?
 
-  inventoryBehavior Int             @default(1)
+  inventoryBehavior Int                @default(1)
   inventoryItems    InventoryItem[]
   shoppingListItems ShoppingListItem[]
+  Recipe            Recipe[]
+  RecipeIngredient  RecipeIngredient[]
 }
 
 model InventoryItem {
@@ -85,46 +92,46 @@ model InventoryItem {
 }
 
 model Store {
-  id   String @id @default(uuid())
-  name String @unique
+  id       String  @id @default(uuid())
+  name     String  @unique
   favorite Boolean @default(false)
 
-  inventoryItems InventoryItem[]
+  inventoryItems    InventoryItem[]
   shoppingListItems ShoppingListItem[]
 }
 
 // === SHOPPING LIST MODELS BELOW ===
 
 model ShoppingListItem {
-  id         String   @id @default(uuid())
-  user       User     @relation(fields: [userId], references: [id])
-  userId     String
+  id     String @id @default(uuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
 
-  product    Product? @relation(fields: [productId], references: [id])
-  productId  String?
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String?
 
   name       String?
   categoryId String?
   unit       String?
-  quantity   Float     @default(1)
+  quantity   Float   @default(1)
   price      Float?
-  store      Store?    @relation(fields: [storeId], references: [id])
+  store      Store?  @relation(fields: [storeId], references: [id])
   storeId    String?
   vendorId   String?
   notes      String?
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   shoppingListItemHistories ShoppingListItemHistory[]
 }
 
 model ShoppingListItemHistory {
-  id         String   @id @default(uuid())
-  user       User     @relation(fields: [userId], references: [id])
-  userId     String
+  id     String @id @default(uuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
 
-  shoppingListItem ShoppingListItem? @relation(fields: [shoppingListItemId], references: [id])
+  shoppingListItem   ShoppingListItem? @relation(fields: [shoppingListItemId], references: [id])
   shoppingListItemId String?
 
   productId  String?
@@ -137,4 +144,162 @@ model ShoppingListItemHistory {
   vendorId   String?
   notes      String?
   removedAt  DateTime @default(now())
+}
+
+// -------------------- Recipes core --------------------
+
+model Recipe {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Ownership (optional scoping per user)
+  createdByUser   User?   @relation(fields: [createdByUserId], references: [id])
+  createdByUserId String?
+
+  // Core fields
+  title       String
+  slug        String
+  sourceUrl   String?
+  description String?
+  servings    Int?
+  yields      String?
+  favorite    Boolean @default(false)
+  imageUrl    String?
+
+  // Taxonomy
+  course   RecipeCourse? @relation(fields: [courseId], references: [id])
+  courseId String?
+
+  cuisine   RecipeCuisine? @relation(fields: [cuisineId], references: [id])
+  cuisineId String?
+
+  keyIngredient     Product? @relation(fields: [keyIngredientId], references: [id])
+  keyIngredientId   String?
+  keyIngredientText String?
+
+  // Relations
+  ingredients RecipeIngredient[]
+  steps       RecipeStep[]
+  tags        RecipeTagOnRecipe[]
+
+  @@unique([slug, createdByUserId]) // slug unique per user (null-safe)
+  @@index([createdByUserId])
+  @@index([courseId])
+  @@index([cuisineId])
+  @@index([favorite])
+  @@index([title])
+}
+
+model RecipeStep {
+  id       String @id @default(uuid())
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  recipeId String
+
+  idx       Int
+  body      String
+  minutes   Int?
+  createdAt DateTime @default(now())
+
+  @@unique([recipeId, idx])
+  @@index([recipeId, idx])
+}
+
+enum RecipeIngredientType {
+  ITEM
+  HEADING
+}
+
+enum IngredientLinkStatus {
+  PENDING
+  LINKED
+}
+
+model RecipeIngredient {
+  id       String @id @default(uuid())
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  recipeId String
+
+  idx  Int
+  type RecipeIngredientType @default(ITEM)
+
+  // Parsed fields for ITEM (nullable to allow HEADING rows)
+  amount Decimal? @db.Decimal(10, 3)
+  unit   Unit?    @relation(fields: [unitId], references: [id])
+  unitId String?
+
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String?
+
+  name  String?
+  notes String?
+
+  // For HEADING rows
+  heading String?
+
+  // Always keep what the user typed
+  rawText String
+
+  // Linking workflow
+  linkStatus    IngredientLinkStatus @default(PENDING)
+  candidateName String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([recipeId, idx])
+  @@index([recipeId, idx])
+  @@index([productId])
+  @@index([unitId])
+  @@index([linkStatus])
+}
+
+model RecipeCourse {
+  id       String  @id @default(uuid())
+  name     String
+  favorite Boolean @default(false)
+
+  createdByUser   User?   @relation(fields: [createdByUserId], references: [id])
+  createdByUserId String?
+
+  recipes Recipe[]
+
+  @@unique([name, createdByUserId])
+  @@index([favorite])
+}
+
+model RecipeCuisine {
+  id       String  @id @default(uuid())
+  name     String
+  favorite Boolean @default(false)
+
+  createdByUser   User?   @relation(fields: [createdByUserId], references: [id])
+  createdByUserId String?
+
+  recipes Recipe[]
+
+  @@unique([name, createdByUserId])
+  @@index([favorite])
+}
+
+model RecipeTag {
+  id   String @id @default(uuid())
+  name String
+
+  createdByUser   User?   @relation(fields: [createdByUserId], references: [id])
+  createdByUserId String?
+
+  recipes RecipeTagOnRecipe[]
+
+  @@unique([name, createdByUserId])
+}
+
+model RecipeTagOnRecipe {
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  recipeId String
+
+  tag   RecipeTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId String
+
+  @@id([recipeId, tagId])
+  @@index([tagId])
 }
