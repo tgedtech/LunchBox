@@ -15,7 +15,6 @@ function Recipes() {
   const load = async () => {
     setLoading(true);
     try {
-      // Server-side search is available, but we’ll keep it local for now
       const data = await recipesService.all();
       setItems(data || []);
     } finally {
@@ -27,25 +26,24 @@ function Recipes() {
 
   const filtered = useMemo(() => {
     const v = (q || '').trim().toLowerCase();
-    let list = items || [];
-    if (v) {
-      list = list.filter((r) =>
-        r.title?.toLowerCase().includes(v) ||
-        (r.tags || []).some((t) => t.tag?.name?.toLowerCase().includes(v))
-      );
-    }
+    let list = items;
+    if (v) list = list.filter(r =>
+      r.title?.toLowerCase().includes(v) ||
+      (r.tags || []).some(t => t.tag?.name?.toLowerCase().includes(v))
+    );
     if (sortKey === 'title') list = list.slice().sort((a, b) => a.title.localeCompare(b.title));
     return list;
   }, [items, q, sortKey]);
 
   const toggleFav = async (id) => {
-    try {
-      await recipesService.toggleFavorite(id);
-      // optimistic update
-      setItems((prev) => prev.map((r) => (r.id === id ? { ...r, favorite: !r.favorite } : r)));
-    } catch (e) {
-      console.error('Failed to toggle favorite', e);
-    }
+    await recipesService.toggleFavorite(id);
+    setItems(prev => prev.map(r => r.id === id ? { ...r, favorite: !r.favorite } : r));
+  };
+
+  const onDelete = async (id) => {
+    if (!window.confirm('Delete this recipe?')) return;
+    await recipesService.remove(id);
+    setItems(prev => prev.filter(r => r.id !== id));
   };
 
   return (
@@ -98,23 +96,23 @@ function Recipes() {
                   alt={r.title}
                   className="w-full h-48 object-cover object-center rounded"
                 />
-                <button
-                  type="button"
-                  className="btn btn-circle btn-ghost absolute top-2 right-2 z-10 p-1 min-h-0 h-8 w-8 flex items-center justify-center"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" height="20" width="5" viewBox="0 0 128 512" className="text-primary-content fill-current">
-                    <path d="M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z" />
-                  </svg>
-                </button>
-              </figure>
-              <div className="card-body p-3 pb-5 flex flex-col">
-                <div className="flex justify-between items-start">
-                  <h2 className="card-title font-nunito-sans text-sm text-neutral-content flex-1 break-words line-clamp-3">
-                    {r.title}
-                  </h2>
+                {/* Card actions: menu + favorite */}
+                <div className="absolute top-2 right-2 z-10 flex gap-1">
+                  <details className="dropdown dropdown-end">
+                    <summary className="btn btn-circle btn-ghost p-1 min-h-0 h-8 w-8 flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" height="20" width="5" viewBox="0 0 128 512" className="text-primary-content fill-current">
+                        <path d="M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z" />
+                      </svg>
+                    </summary>
+                    <ul className="menu menu-sm dropdown-content bg-base-100 rounded-box w-36 p-2 shadow">
+                      <li><button onClick={() => navigate(`/recipes/${r.id}/edit`)}>Edit</button></li>
+                      <li><button className="text-error" onClick={() => onDelete(r.id)}>Delete</button></li>
+                    </ul>
+                  </details>
+
                   <button
                     type="button"
-                    className="ml-2 flex-shrink-0 bg-transparent border-0 p-0"
+                    className="ml-1 flex-shrink-0 bg-transparent border-0 p-0 btn btn-circle btn-ghost min-h-0 h-8 w-8"
                     onClick={() => toggleFav(r.id)}
                     title={r.favorite ? 'Unfavorite' : 'Favorite'}
                   >
@@ -125,6 +123,12 @@ function Recipes() {
                     />
                   </button>
                 </div>
+              </figure>
+
+              <div className="card-body p-3 pb-5 flex flex-col">
+                <h2 className="card-title font-nunito-sans text-sm text-neutral-content flex-1 break-words line-clamp-3">
+                  {r.title}
+                </h2>
               </div>
             </div>
           ))}

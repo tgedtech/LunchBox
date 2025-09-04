@@ -4,6 +4,7 @@ import Inventory from './pages/Inventory';
 import ShoppingList from './pages/ShoppingList';
 import Recipes from './pages/Recipes';
 import RecipeNew from './pages/RecipeNew.jsx';
+import RecipeEdit from './pages/RecipeEdit.jsx';
 import Settings from './pages/Settings';
 import ManageProducts from './pages/masterdata/ManageProducts';
 import ManageCategories from './pages/masterdata/ManageCategories';
@@ -30,6 +31,7 @@ function AppRoutes() {
         <Route path="/shopping-list" element={<ShoppingList />} />
         <Route path="/recipes" element={<Recipes />} />
         <Route path="/recipes/new" element={<RecipeNew />} />
+        <Route path="/recipes/:id/edit" element={<RecipeEdit />} />
         <Route path="/expired-report" element={<ExpiredInventoryPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/products" element={<ManageProducts />} />
