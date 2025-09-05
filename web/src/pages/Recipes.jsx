@@ -12,6 +12,11 @@ function Recipes() {
   const [sortKey, setSortKey] = useState('title');
   const [loading, setLoading] = useState(true);
 
+  const overlayBtn =
+    'btn btn-circle btn-ghost min-h-0 h-9 w-9 p-0 ' +
+    'bg-base-100/70 text-base-content backdrop-blur-sm ' +
+    'hover:bg-base-100/80';
+
   const load = async () => {
     setLoading(true);
     try {
@@ -89,40 +94,33 @@ function Recipes() {
         )}
         <div className="flex flex-wrap gap-4">
           {filtered.map((r) => (
-            <div key={r.id} className="card bg-base-100 shadow-sm card-lg w-50">
+            <div
+              key={r.id}
+              className="card relative bg-base-100 shadow-sm card-lg w-50 cursor-pointer hover:shadow-md transition"
+              onClick={() => navigate(`/recipes/${r.id}/edit`)}
+            >
               <figure className="relative">
                 <img
                   src={r.imageUrl || MissingImage}
                   alt={r.title}
                   className="w-full h-48 object-cover object-center rounded"
                 />
-                {/* Card actions: menu + favorite */}
-                <div className="absolute top-2 right-2 z-10 flex gap-1">
-                  <details className="dropdown dropdown-end">
-                    <summary className="btn btn-circle btn-ghost p-1 min-h-0 h-8 w-8 flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" height="20" width="5" viewBox="0 0 128 512" className="text-primary-content fill-current">
-                        <path d="M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z" />
-                      </svg>
-                    </summary>
-                    <ul className="menu menu-sm dropdown-content bg-base-100 rounded-box w-36 p-2 shadow">
-                      <li><button onClick={() => navigate(`/recipes/${r.id}/edit`)}>Edit</button></li>
-                      <li><button className="text-error" onClick={() => onDelete(r.id)}>Delete</button></li>
-                    </ul>
-                  </details>
 
-                  <button
-                    type="button"
-                    className="ml-1 flex-shrink-0 bg-transparent border-0 p-0 btn btn-circle btn-ghost min-h-0 h-8 w-8"
-                    onClick={() => toggleFav(r.id)}
-                    title={r.favorite ? 'Unfavorite' : 'Favorite'}
-                  >
-                    <img
-                      src={r.favorite ? HeartSolid : HeartRegular}
-                      alt={r.favorite ? 'Favorite' : 'Not Favorite'}
-                      className="w-4 h-4"
-                    />
-                  </button>
-                </div>
+                {/* Top-right: menu */}
+                <details
+                  className="dropdown dropdown-end absolute top-2 right-2 z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <summary className={overlayBtn} aria-label="Card menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20" width="5" viewBox="0 0 128 512" className="fill-current">
+                      <path d="M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z" />
+                    </svg>
+                  </summary>
+                  <ul className="menu menu-sm dropdown-content bg-base-100 rounded-box w-36 p-2 shadow">
+                    <li><button onClick={() => navigate(`/recipes/${r.id}/edit`)}>Edit</button></li>
+                    <li><button className="text-error" onClick={() => onDelete(r.id)}>Delete</button></li>
+                  </ul>
+                </details>
               </figure>
 
               <div className="card-body p-3 pb-5 flex flex-col">
@@ -130,6 +128,21 @@ function Recipes() {
                   {r.title}
                 </h2>
               </div>
+
+              {/* Bottom-right: favorite */}
+              <button
+                type="button"
+                className={`absolute bottom-2 right-2 z-10 ${overlayBtn}`}
+                onClick={(e) => { e.stopPropagation(); toggleFav(r.id); }}
+                title={r.favorite ? 'Unfavorite' : 'Favorite'}
+                aria-label="Toggle favorite"
+              >
+                <img
+                  src={r.favorite ? HeartSolid : HeartRegular}
+                  alt={r.favorite ? 'Favorite' : 'Not Favorite'}
+                  className="w-4 h-4"
+                />
+              </button>
             </div>
           ))}
         </div>
