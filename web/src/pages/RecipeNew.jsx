@@ -5,7 +5,6 @@ import { recipesService } from '../services/recipesService';
 function RecipeNew() {
   const navigate = useNavigate();
 
-  // Top-level fields
   const [title, setTitle] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [description, setDescription] = useState('');
@@ -14,85 +13,50 @@ function RecipeNew() {
   const [favorite, setFavorite] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
 
-  // Classification
   const [course, setCourse] = useState('');
   const [cuisine, setCuisine] = useState('');
-  const [keyIngredient, setKeyIngredient] = useState(''); // free text for now
-
-  // Tags
+  const [keyIngredient, setKeyIngredient] = useState('');
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
 
-  // Ingredients / Steps
   const [ingredients, setIngredients] = useState([]);
   const [steps, setSteps] = useState([]);
   const [bulk, setBulk] = useState('');
 
   const [saving, setSaving] = useState(false);
 
-  // --- Tags
   const addTag = () => {
     const t = tagInput.trim();
     if (!t || tags.includes(t)) return;
     setTags([...tags, t]);
     setTagInput('');
   };
-  const removeTag = (t) => setTags(tags.filter((x) => x !== t));
+  const removeTag = (t) => setTags(tags.filter(x => x !== t));
 
-  // --- Ingredients
   const addIngredient = () =>
-    setIngredients([
-      ...ingredients,
-      { type: 'ITEM', amount: '', unitId: null, productId: null, name: '', notes: '' },
-    ]);
+    setIngredients([...ingredients, { type: 'ITEM', amount: '', unitId: null, unitName: '', productId: null, name: '', notes: '' }]);
+  const updateIngredient = (i, patch) =>
+    setIngredients(ingredients.map((row, ix) => (ix === i ? { ...row, ...patch } : row)));
+  const removeIngredient = (i) => setIngredients(ingredients.filter((_, ix) => ix !== i));
 
   const addHeading = () =>
     setIngredients([...ingredients, { type: 'HEADING', heading: 'Section', rawText: 'Section' }]);
 
-  const updateIngredient = (i, patch) =>
-    setIngredients(ingredients.map((row, ix) => (ix === i ? { ...row, ...patch } : row)));
-
-  const removeIngredient = (i) =>
-    setIngredients(ingredients.filter((_, ix) => ix !== i));
-
   const parseBulk = () => {
-    // Naive: "Amt Unit Name"
     const rows = bulk.split(/\n+/).map((l) => l.trim()).filter(Boolean);
     const parsed = rows.map((line) => {
       const m = line.match(/^(\S+)\s+(\S+)\s+(.+)$/);
-      if (m) {
-        return {
-          type: 'ITEM',
-          amount: m[1],
-          unitId: null,          // future: map to Unit table
-          productId: null,       // future: product linking/creation
-          name: m[3],
-          notes: '',
-          candidateName: m[3],
-          rawText: line,
-        };
-      }
-      return {
-        type: 'ITEM',
-        amount: null,
-        unitId: null,
-        productId: null,
-        name: line,
-        notes: '',
-        candidateName: line,
-        rawText: line,
-      };
+      if (m) return { type: 'ITEM', amount: m[1], unitId: null, unitName: m[2], productId: null, name: m[3], notes: '', candidateName: m[3], rawText: line };
+      return { type: 'ITEM', amount: null, unitId: null, unitName: '', productId: null, name: line, notes: '', candidateName: line, rawText: line };
     });
     setIngredients([...ingredients, ...parsed]);
     setBulk('');
   };
 
-  // --- Steps
   const addStep = () => setSteps([...steps, '']);
   const updateStep = (i, v) => setSteps(steps.map((s, ix) => (ix === i ? v : s)));
   const removeStep = (i) => setSteps(steps.filter((_, ix) => ix !== i));
 
-  // --- Save
   const onSave = async () => {
     if (!title.trim()) {
       alert('Title is required');
@@ -108,15 +72,10 @@ function RecipeNew() {
         yields: yields || null,
         favorite,
         imageUrl: imageUrl || null,
-
-        // let API upsert/resolve these by name (per-user)
         courseName: course || undefined,
         cuisineName: cuisine || undefined,
         keyIngredientText: keyIngredient || undefined,
-
-        tags, // array of strings
-
-        // ingredients: send what the API expects; Decimal -> string or null
+        tags,
         ingredients: ingredients.map((row) => {
           if (row.type === 'HEADING') {
             return {
@@ -127,29 +86,27 @@ function RecipeNew() {
           }
           return {
             type: 'ITEM',
-            amount: row.amount === '' ? null : String(row.amount),
-            unitId: row.unitId || null,        // future: select Unit
-            productId: row.productId || null,  // future: link Product
+            amount: row.amount === '' ? null : row.amount,
+            unitId: row.unitId || null,
             name: row.name || null,
+            productId: row.productId || null,
             notes: row.notes || null,
-            rawText:
-              row.rawText ||
-              [row.amount, row.name, row.notes].filter(Boolean).join(' ').trim(),
+            rawText: row.rawText || [row.amount, row.unitName, row.name, row.notes].filter(Boolean).join(' ').trim(),
             candidateName: row.candidateName || row.name || null,
           };
         }),
-
-        // steps: strings (trim empties)
-        steps: steps
-          .map((s) => String(s || '').trim())
-          .filter((s) => s.length > 0),
+        steps: steps.map((s) => String(s || '')),
       };
 
       await recipesService.create(payload);
       navigate('/recipes');
     } catch (e) {
-      console.error('Failed to save recipe', e);
-      alert('Failed to save recipe.');
+      if (e?.response?.status === 409) {
+        alert('A recipe with this title already exists.');
+      } else {
+        console.error(e);
+        alert('Failed to save recipe.');
+      }
     } finally {
       setSaving(false);
     }
@@ -302,12 +259,7 @@ function RecipeNew() {
                 </div>
               </div>
 
-              <input
-                type="radio"
-                name="ingredient-tabs"
-                className="tab font-nunito-sans font-bold text-primary bg-base-content-content"
-                aria-label="Bulk Item Entry"
-              />
+              <input type="radio" name="ingredient-tabs" className="tab font-nunito-sans font-bold text-primary bg-base-content-content" aria-label="Bulk Item Entry" />
               <div className="tab-content border-base-300 bg-base-content-content p-2">
                 <textarea
                   className="textarea h-24 w-full bg-base-content-content"

@@ -11,11 +11,7 @@ function Recipes() {
   const [q, setQ] = useState('');
   const [sortKey, setSortKey] = useState('title');
   const [loading, setLoading] = useState(true);
-
-  const overlayBtn =
-    'btn btn-circle btn-ghost min-h-0 h-9 w-9 p-0 ' +
-    'bg-base-100/70 text-base-content backdrop-blur-sm ' +
-    'hover:bg-base-100/80';
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -40,15 +36,26 @@ function Recipes() {
     return list;
   }, [items, q, sortKey]);
 
-  const toggleFav = async (id) => {
+  const toggleFav = async (e, id) => {
+    e.stopPropagation();
     await recipesService.toggleFavorite(id);
     setItems(prev => prev.map(r => r.id === id ? { ...r, favorite: !r.favorite } : r));
   };
 
-  const onDelete = async (id) => {
-    if (!window.confirm('Delete this recipe?')) return;
-    await recipesService.remove(id);
-    setItems(prev => prev.filter(r => r.id !== id));
+  const openEdit = (id) => navigate(`/recipes/${id}/edit`);
+
+  const onDelete = async (e, id, title) => {
+    e.stopPropagation();
+    setOpenMenuId(null);
+    const ok = window.confirm(`Delete "${title}"? This cannot be undone.`);
+    if (!ok) return;
+    try {
+      await recipesService.remove(id);
+      setItems(prev => prev.filter(r => r.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete recipe.');
+    }
   };
 
   return (
@@ -96,8 +103,8 @@ function Recipes() {
           {filtered.map((r) => (
             <div
               key={r.id}
-              className="card relative bg-base-100 shadow-sm card-lg w-50 cursor-pointer hover:shadow-md transition"
-              onClick={() => navigate(`/recipes/${r.id}/edit`)}
+              className="card bg-base-100 shadow-sm card-lg w-50 cursor-pointer"
+              onClick={() => openEdit(r.id)}
             >
               <figure className="relative">
                 <img
@@ -106,43 +113,51 @@ function Recipes() {
                   className="w-full h-48 object-cover object-center rounded"
                 />
 
-                {/* Top-right: menu */}
-                <details
-                  className="dropdown dropdown-end absolute top-2 right-2 z-10"
-                  onClick={(e) => e.stopPropagation()}
+                {/* 3-dots menu trigger */}
+                <button
+                  type="button"
+                  className="btn btn-circle btn-ghost absolute top-2 right-2 z-20 p-1 min-h-0 h-8 w-8 flex items-center justify-center"
+                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(prev => prev === r.id ? null : r.id); }}
+                  aria-label="Card menu"
                 >
-                  <summary className={overlayBtn} aria-label="Card menu">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20" width="5" viewBox="0 0 128 512" className="fill-current">
-                      <path d="M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z" />
-                    </svg>
-                  </summary>
-                  <ul className="menu menu-sm dropdown-content bg-base-100 rounded-box w-36 p-2 shadow">
-                    <li><button onClick={() => navigate(`/recipes/${r.id}/edit`)}>Edit</button></li>
-                    <li><button className="text-error" onClick={() => onDelete(r.id)}>Delete</button></li>
-                  </ul>
-                </details>
+                  <svg xmlns="http://www.w3.org/2000/svg" height="18" width="5" viewBox="0 0 128 512" className="fill-current">
+                    <path d="M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z" />
+                  </svg>
+                </button>
+
+                {/* Small dropdown menu */}
+                {openMenuId === r.id && (
+                  <div
+                    className="absolute top-10 right-2 z-30 bg-base-100 rounded-box shadow p-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button className="btn btn-ghost btn-sm w-full justify-start" onClick={() => openEdit(r.id)}>Edit</button>
+                    <button className="btn btn-ghost btn-sm w-full justify-start text-error" onClick={(e) => onDelete(e, r.id, r.title)}>Delete…</button>
+                  </div>
+                )}
               </figure>
 
-              <div className="card-body p-3 pb-5 flex flex-col">
-                <h2 className="card-title font-nunito-sans text-sm text-neutral-content flex-1 break-words line-clamp-3">
-                  {r.title}
-                </h2>
-              </div>
+              <div className="card-body p-3 pb-5 flex flex-col relative">
+                <div className="flex justify-between items-start pr-8">
+                  <h2 className="card-title font-nunito-sans text-sm text-neutral-content flex-1 break-words line-clamp-3">
+                    {r.title}
+                  </h2>
+                </div>
 
-              {/* Bottom-right: favorite */}
-              <button
-                type="button"
-                className={`absolute bottom-2 right-2 z-10 ${overlayBtn}`}
-                onClick={(e) => { e.stopPropagation(); toggleFav(r.id); }}
-                title={r.favorite ? 'Unfavorite' : 'Favorite'}
-                aria-label="Toggle favorite"
-              >
-                <img
-                  src={r.favorite ? HeartSolid : HeartRegular}
-                  alt={r.favorite ? 'Favorite' : 'Not Favorite'}
-                  className="w-4 h-4"
-                />
-              </button>
+                {/* Favorite bottom-right */}
+                <button
+                  type="button"
+                  className="absolute bottom-2 right-2 bg-base-100/80 backdrop-blur rounded-full p-2"
+                  onClick={(e) => toggleFav(e, r.id)}
+                  title={r.favorite ? 'Unfavorite' : 'Favorite'}
+                >
+                  <img
+                    src={r.favorite ? HeartSolid : HeartRegular}
+                    alt={r.favorite ? 'Favorite' : 'Not Favorite'}
+                    className="w-5 h-5"
+                  />
+                </button>
+              </div>
             </div>
           ))}
         </div>

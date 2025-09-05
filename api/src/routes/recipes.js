@@ -143,7 +143,14 @@ router.post('/', auth, async (req, res) => {
 
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
 
-    // slug
+    // Enforce unique title per user
+    const titleExists = await prisma.recipe.findFirst({
+      where: { createdByUserId: userId, title: title.trim() },
+      select: { id: true },
+    });
+    if (titleExists) return res.status(409).json({ error: 'A recipe with this title already exists.' });
+
+    // Unique slug per user
     let base = slugify(title);
     if (!base) base = 'recipe';
     let slug = base;
@@ -197,15 +204,9 @@ router.post('/', auth, async (req, res) => {
             name: row.name ?? null,
             notes: row.notes ?? null,
             heading: row.heading ?? null,
-            // ✅ wrap the || chain so it's not mixed with ??
             rawText:
               row.rawText ??
-              (
-                [row.amount, row.unit, row.name, row.notes].filter(Boolean).join(' ') ||
-                row.heading ||
-                row.name ||
-                ''
-              ),
+              [row.amount, row.unitName, row.name, row.notes].filter(Boolean).join(' '),
             linkStatus: row.productId ? IngredientLinkStatus.LINKED : IngredientLinkStatus.PENDING,
             candidateName: row.candidateName ?? row.name ?? null,
           })),
@@ -273,7 +274,16 @@ router.put('/:id', auth, async (req, res) => {
     });
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
-    // maybe update slug
+    // If title changed, enforce uniqueness per user
+    if (typeof title === 'string' && title.trim() && title.trim() !== existing.title) {
+      const conflict = await prisma.recipe.findFirst({
+        where: { createdByUserId: userId, title: title.trim(), NOT: { id } },
+        select: { id: true },
+      });
+      if (conflict) return res.status(409).json({ error: 'A recipe with this title already exists.' });
+    }
+
+    // Re-slug if title changed
     let updateSlug = undefined;
     if (title && title.trim() !== existing.title) {
       let base = slugify(title);
@@ -302,7 +312,7 @@ router.put('/:id', auth, async (req, res) => {
       await tx.recipe.update({
         where: { id },
         data: {
-          ...(title ? { title: title.trim() } : {}),
+          ...(typeof title === 'string' ? { title: title.trim() } : {}),
           ...(updateSlug ? { slug: updateSlug } : {}),
           sourceUrl: sourceUrl ?? null,
           description: description ?? null,
@@ -334,15 +344,9 @@ router.put('/:id', auth, async (req, res) => {
             name: row.name ?? null,
             notes: row.notes ?? null,
             heading: row.heading ?? null,
-            // ✅ same fix here
             rawText:
               row.rawText ??
-              (
-                [row.amount, row.unit, row.name, row.notes].filter(Boolean).join(' ') ||
-                row.heading ||
-                row.name ||
-                ''
-              ),
+              [row.amount, row.unitName, row.name, row.notes].filter(Boolean).join(' '),
             linkStatus: row.productId ? IngredientLinkStatus.LINKED : IngredientLinkStatus.PENDING,
             candidateName: row.candidateName ?? row.name ?? null,
           })),
