@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { recipesService } from '../services/recipesService';
 import Modal from '../components/common/Modal';
 import IngredientRow from '../components/recipes/IngredientRow';
+import CreatableSelect from 'react-select/creatable';
 
 function RecipeNew() {
   const navigate = useNavigate();
@@ -15,11 +16,17 @@ function RecipeNew() {
   const [favorite, setFavorite] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
 
-  const [course, setCourse] = useState('');
-  const [cuisine, setCuisine] = useState('');
-  const [keyIngredient, setKeyIngredient] = useState('');
-  const [tags, setTags] = useState([]);
-  const [tagInput, setTagInput] = useState('');
+  // Lookups (creatable)
+  const [courseSel, setCourseSel] = useState(null);   // { value: 'name', label: 'name' }
+  const [cuisineSel, setCuisineSel] = useState(null);
+  const [tagsSel, setTagsSel] = useState([]);         // [{ value: 'name', label: 'name' }]
+  const [keyIngSel, setKeyIngSel] = useState(null);   // { value: productId | undefined, label: 'name', __isNew__? }
+
+  // Suggestions
+  const [courseOptions, setCourseOptions] = useState([]);
+  const [cuisineOptions, setCuisineOptions] = useState([]);
+  const [tagOptions, setTagOptions] = useState([]);
+  const [keyIngOptions, setKeyIngOptions] = useState([]);
 
   const [ingredients, setIngredients] = useState([]);
   const [steps, setSteps] = useState([]);
@@ -30,36 +37,98 @@ function RecipeNew() {
   const [errors, setErrors] = useState({});
   const [warnModal, setWarnModal] = useState(false);
   const debounceRef = useRef();
+  const keyIngDebounce = useRef();
 
-  // Units cache for the ingredient unit select
+  // Units cache for IngredientRow unit creatable
   const [units, setUnits] = useState([]);
+  const onUnitCreated = (u) =>
+    setUnits((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
 
   useEffect(() => {
     (async () => {
       try {
-        const list = await recipesService.listUnits();
-        setUnits(list || []);
+        // hydrate distinct course/cuisine/tag suggestions from existing recipes
+        const list = await recipesService.all({ take: 300 });
+        const courses = new Set();
+        const cuisines = new Set();
+        const tags = new Set();
+
+        (list || []).forEach(r => {
+          if (r.course?.name) courses.add(r.course.name);
+          if (r.cuisine?.name) cuisines.add(r.cuisine.name);
+          (r.tags || []).forEach(t => t?.tag?.name && tags.add(t.tag.name));
+        });
+
+        setCourseOptions(Array.from(courses).sort().map(n => ({ value: n, label: n })));
+        setCuisineOptions(Array.from(cuisines).sort().map(n => ({ value: n, label: n })));
+        setTagOptions(Array.from(tags).sort().map(n => ({ value: n, label: n })));
       } catch (e) {
-        console.error('Failed to load units', e);
+        console.error('Failed to load recipe suggestions', e);
+      }
+
+      try {
+        const u = await recipesService.listUnits?.();
+        if (Array.isArray(u)) setUnits(u);
+      } catch (e) {
+        // optional; IngredientRow can still work with creatable-only
+        console.warn('Units fetch optional failed', e);
       }
     })();
   }, []);
 
-  const addTag = () => {
-    const t = tagInput.trim();
-    if (!t || tags.includes(t)) return;
-    setTags([...tags, t]);
-    setTagInput('');
+  // react-select styles to match your UI
+  const selectStyle = {
+    control: (provided, state) => ({
+      ...provided,
+      backgroundColor: '#f9fafb',
+      borderColor: state.isFocused ? '#60a5fa' : '#d1d5db',
+      boxShadow: 'none',
+      borderRadius: '0.5rem',
+      minHeight: '2.5rem',
+      fontSize: '0.875rem',
+      transition: 'all 0.2s ease',
+      '&:hover': { borderColor: '#60a5fa' },
+    }),
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+    menu: (provided) => ({
+      ...provided, zIndex: 9999, backgroundColor: '#ffffff', borderRadius: '0.5rem',
+      boxShadow: '0 4px 8px rgba(0,0,0,0.08)', marginTop: '4px',
+    }),
+    option: (provided, state) => ({
+      ...provided, backgroundColor: state.isFocused ? '#f3f4f6' : '#ffffff',
+      color: '#111827', cursor: 'pointer', fontSize: '0.875rem', padding: '0.5rem 0.75rem',
+    }),
+    placeholder: (p) => ({ ...p, color: '#9ca3af' }),
+    singleValue: (p) => ({ ...p, color: '#111827' }),
+    multiValue: (p) => ({ ...p, backgroundColor: '#eef2ff' }),
+    multiValueLabel: (p) => ({ ...p, color: '#3730a3' }),
   };
-  const removeTag = (t) => setTags(tags.filter(x => x !== t));
+
+  // Key ingredient async options load (products)
+  const onKeyIngInput = (val) => {
+    clearTimeout(keyIngDebounce.current);
+    keyIngDebounce.current = setTimeout(async () => {
+      try {
+        if (!val?.trim()) { setKeyIngOptions([]); return; }
+        const list = await recipesService.searchProducts(val, 20);
+        setKeyIngOptions((list || []).map(p => ({ value: p.id, label: p.name })));
+      } catch (e) {
+        console.error('key ingredient search failed', e);
+      }
+    }, 250);
+  };
+
+  const addTag = () => {
+    // handled via CreatableSelect (isMulti), keeping for parity
+  };
+
+  const removeTag = () => {};
 
   const addIngredient = () =>
     setIngredients([...ingredients, { type: 'ITEM', amount: '', unitId: null, unitName: '', productId: null, name: '', notes: '' }]);
   const updateIngredient = (i, patch) =>
     setIngredients(ingredients.map((row, ix) => (ix === i ? { ...row, ...patch } : row)));
   const removeIngredient = (i) => setIngredients(ingredients.filter((_, ix) => ix !== i));
-  const onUnitCreated = (u) =>
-    setUnits((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
 
   const addHeading = () =>
     setIngredients([...ingredients, { type: 'HEADING', heading: 'Section', rawText: 'Section' }]);
@@ -91,10 +160,10 @@ function RecipeNew() {
     if (!title.trim()) next.title = 'Title is required.';
     else {
       try {
-        const { exists } = await recipesService.validateTitle(title.trim());
+        const { exists } = await recipesService.validateTitle?.(title.trim());
         if (exists) next.title = 'A recipe with this title already exists.';
       } catch {
-        // ignore network hiccups for realtime validation
+        // ignore realtime hiccups
       }
     }
 
@@ -130,10 +199,16 @@ function RecipeNew() {
         yields: yields || null,
         favorite,
         imageUrl: imageUrl || null,
-        courseName: course || undefined,
-        cuisineName: cuisine || undefined,
-        keyIngredientText: keyIngredient || undefined,
-        tags,
+
+        courseName: courseSel?.label || undefined,
+        cuisineName: cuisineSel?.label || undefined,
+
+        // key ingredient: either id (selected existing product) or free-text
+        keyIngredientId: keyIngSel && !keyIngSel.__isNew__ ? keyIngSel.value : undefined,
+        keyIngredientText: keyIngSel?.__isNew__ ? keyIngSel.label : undefined,
+
+        tags: (tagsSel || []).map(t => t.label),
+
         ingredients: ingredients.map((row) => {
           if (row.type === 'HEADING') {
             return {
@@ -203,31 +278,61 @@ function RecipeNew() {
 
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="textarea w-full rounded-box font-nunito-sans font-bold bg-base-content-content" />
 
-            <div className="join join-horizontal gap-2">
-              <label className="form-control w-full">
-                <input value={servings} onChange={(e) => setServings(e.target.value)} type="number" placeholder="Servings" className={`input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content ${errors.servings ? 'input-error' : ''}`} />
-                {errors.servings && <span className="text-error text-xs mt-1">{errors.servings}</span>}
-              </label>
-              <input value={yields} onChange={(e) => setYields(e.target.value)} type="text" placeholder="Yields" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
+            <div className="join join-vertical gap-2">
+              <CreatableSelect
+                styles={selectStyle}
+                placeholder="Course (select or type to create)"
+                isClearable
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                options={courseOptions}
+                value={courseSel}
+                onChange={setCourseSel}
+              />
+              <CreatableSelect
+                styles={selectStyle}
+                placeholder="Cuisine (select or type to create)"
+                isClearable
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                options={cuisineOptions}
+                value={cuisineSel}
+                onChange={setCuisineSel}
+              />
+              <CreatableSelect
+                styles={selectStyle}
+                placeholder="Key Ingredient (search products or type free text)"
+                isClearable
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                options={keyIngOptions}
+                value={keyIngSel}
+                onInputChange={onKeyIngInput}
+                onChange={setKeyIngSel}
+                formatCreateLabel={(v) => `Use "${v}" as free text`}
+              />
             </div>
 
-            <div className="join join-horizontal gap-2">
-              <input value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} type="text" placeholder="Add a tag and press Enter" className="input text-neutral-content font-nunito-sans font-bold w-full rounded-box bg-base-content-content" />
-              <button className="btn" onClick={addTag}>Add</button>
+            <div className="mt-2">
+              <CreatableSelect
+                styles={selectStyle}
+                isMulti
+                placeholder="Tags (select or type and press Enter)"
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                options={tagOptions}
+                value={tagsSel}
+                onChange={setTagsSel}
+              />
             </div>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {tags.map((t) => (
-                <span key={t} className="badge badge-accent badge-md flex items-center gap-1">{t}
-                  <button type="button" className="btn btn-xs btn-circle btn-ghost" onClick={() => removeTag(t)}>✕</button>
-                </span>
-              ))}
-            </div>
+
             <div className="form-control mt-2">
               <label className="label cursor-pointer gap-2">
                 <input type="checkbox" className="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} />
                 <span className="label-text">Mark as favorite</span>
               </label>
             </div>
+
             <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} type="text" placeholder="Image URL (optional)" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
           </div>
         </div>
@@ -237,15 +342,14 @@ function RecipeNew() {
             <h1 className="card-title font-nunito-sans font-bold text-xl text-base-content">Recipe Details</h1>
             <div className="skeleton h-48 w-48" />
             <div className="join join-vertical gap-y-1">
-              <input value={course} onChange={(e) => setCourse(e.target.value)} type="text" placeholder="Course" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
-              <input value={cuisine} onChange={(e) => setCuisine(e.target.value)} type="text" placeholder="Cuisine" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
-              <input value={keyIngredient} onChange={(e) => setKeyIngredient(e.target.value)} type="text" placeholder="Key Ingredient" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
+              <input value={yields} onChange={(e) => setYields(e.target.value)} type="text" placeholder="Yields" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
+              <input value={servings} onChange={(e) => setServings(e.target.value)} type="number" placeholder="Servings (duplicate input for convenience)" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom cards (now using IngredientRow) */}
+      {/* Bottom cards (IngredientRow) */}
       <div className="flex flex-col md:flex-row gap-6 mt-4">
         <div className="card bg-base-100 shadow-sm card-lg w-full md:w-1/2 max-w-md">
           <div className="card-body flex flex-col">
@@ -309,7 +413,7 @@ function RecipeNew() {
         </div>
       </div>
 
-      {/* Warning modal (styled) if user tries to save with errors */}
+      {/* Warning modal */}
       <Modal
         open={warnModal}
         onClose={() => setWarnModal(false)}

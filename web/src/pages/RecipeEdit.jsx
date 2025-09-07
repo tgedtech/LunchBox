@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { recipesService } from '../services/recipesService';
 import Modal from '../components/common/Modal';
 import IngredientRow from '../components/recipes/IngredientRow';
+import CreatableSelect from 'react-select/creatable';
 
 function RecipeEdit() {
   const { id } = useParams();
@@ -18,11 +19,17 @@ function RecipeEdit() {
   const [favorite, setFavorite] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
 
-  const [course, setCourse] = useState('');
-  const [cuisine, setCuisine] = useState('');
-  const [keyIngredient, setKeyIngredient] = useState('');
-  const [tags, setTags] = useState([]);
-  const [tagInput, setTagInput] = useState('');
+  // Lookups (creatable)
+  const [courseSel, setCourseSel] = useState(null);
+  const [cuisineSel, setCuisineSel] = useState(null);
+  const [tagsSel, setTagsSel] = useState([]);
+  const [keyIngSel, setKeyIngSel] = useState(null);
+
+  // Suggestions
+  const [courseOptions, setCourseOptions] = useState([]);
+  const [cuisineOptions, setCuisineOptions] = useState([]);
+  const [tagOptions, setTagOptions] = useState([]);
+  const [keyIngOptions, setKeyIngOptions] = useState([]);
 
   const [ingredients, setIngredients] = useState([]);
   const [steps, setSteps] = useState([]);
@@ -34,22 +41,72 @@ function RecipeEdit() {
   const [warnModal, setWarnModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
   const debounceRef = useRef();
+  const keyIngDebounce = useRef();
 
-  // Units cache for the ingredient unit select
+  // Units cache for IngredientRow unit creatable
   const [units, setUnits] = useState([]);
+  const onUnitCreated = (u) =>
+    setUnits((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
+
+  // react-select styles
+  const selectStyle = {
+    control: (provided, state) => ({
+      ...provided,
+      backgroundColor: '#f9fafb',
+      borderColor: state.isFocused ? '#60a5fa' : '#d1d5db',
+      boxShadow: 'none',
+      borderRadius: '0.5rem',
+      minHeight: '2.5rem',
+      fontSize: '0.875rem',
+      transition: 'all 0.2s ease',
+      '&:hover': { borderColor: '#60a5fa' },
+    }),
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+    menu: (provided) => ({
+      ...provided, zIndex: 9999, backgroundColor: '#ffffff', borderRadius: '0.5rem',
+      boxShadow: '0 4px 8px rgba(0,0,0,0.08)', marginTop: '4px',
+    }),
+    option: (provided, state) => ({
+      ...provided, backgroundColor: state.isFocused ? '#f3f4f6' : '#ffffff',
+      color: '#111827', cursor: 'pointer', fontSize: '0.875rem', padding: '0.5rem 0.75rem',
+    }),
+    placeholder: (p) => ({ ...p, color: '#9ca3af' }),
+    singleValue: (p) => ({ ...p, color: '#111827' }),
+    multiValue: (p) => ({ ...p, backgroundColor: '#eef2ff' }),
+    multiValueLabel: (p) => ({ ...p, color: '#3730a3' }),
+  };
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        // Load units list (for unit creatable)
-        try {
-          const list = await recipesService.listUnits();
-          setUnits(list || []);
-        } catch (e) {
-          console.error('Failed to load units', e);
-        }
+        // suggestions from existing recipes
+        const list = await recipesService.all({ take: 300 });
+        const courses = new Set();
+        const cuisines = new Set();
+        const tags = new Set();
 
+        (list || []).forEach(r => {
+          if (r.course?.name) courses.add(r.course.name);
+          if (r.cuisine?.name) cuisines.add(r.cuisine.name);
+          (r.tags || []).forEach(t => t?.tag?.name && tags.add(t.tag.name));
+        });
+
+        const courseOpts = Array.from(courses).sort().map(n => ({ value: n, label: n }));
+        const cuisineOpts = Array.from(cuisines).sort().map(n => ({ value: n, label: n }));
+        const tagOpts = Array.from(tags).sort().map(n => ({ value: n, label: n }));
+
+        setCourseOptions(courseOpts);
+        setCuisineOptions(cuisineOpts);
+        setTagOptions(tagOpts);
+
+        // units (optional)
+        try {
+          const u = await recipesService.listUnits?.();
+          if (Array.isArray(u)) setUnits(u);
+        } catch {}
+
+        // load recipe
         const r = await recipesService.byId(id);
         setTitle(r.title || '');
         setSourceUrl(r.sourceUrl || '');
@@ -58,10 +115,21 @@ function RecipeEdit() {
         setYields(r.yields || '');
         setFavorite(!!r.favorite);
         setImageUrl(r.imageUrl || '');
-        setCourse(r.course?.name || '');
-        setCuisine(r.cuisine?.name || '');
-        setKeyIngredient(r.keyIngredientText || r.keyIngredient?.name || '');
-        setTags((r.tags || []).map((t) => t.tag?.name).filter(Boolean));
+
+        setCourseSel(r.course?.name ? { value: r.course.name, label: r.course.name } : null);
+        setCuisineSel(r.cuisine?.name ? { value: r.cuisine.name, label: r.cuisine.name } : null);
+
+        // key ingredient (prefer id if exists; else free text)
+        if (r.keyIngredient?.id) {
+          setKeyIngSel({ value: r.keyIngredient.id, label: r.keyIngredient.name });
+        } else if (r.keyIngredientText) {
+          setKeyIngSel({ value: undefined, label: r.keyIngredientText, __isNew__: true });
+        } else {
+          setKeyIngSel(null);
+        }
+
+        setTagsSel((r.tags || []).map(t => t?.tag?.name).filter(Boolean).map(n => ({ value: n, label: n })));
+
         setIngredients(
           (r.ingredients || []).map((row) =>
             row.type === 'HEADING'
@@ -93,14 +161,6 @@ function RecipeEdit() {
     })();
   }, [id, navigate]);
 
-  const addTag = () => {
-    const t = tagInput.trim();
-    if (!t || tags.includes(t)) return;
-    setTags([...tags, t]);
-    setTagInput('');
-  };
-  const removeTag = (t) => setTags(tags.filter((x) => x !== t));
-
   const addIngredient = () =>
     setIngredients([
       ...ingredients,
@@ -112,8 +172,6 @@ function RecipeEdit() {
   const updateIngredient = (i, patch) =>
     setIngredients(ingredients.map((row, ix) => (ix === i ? { ...row, ...patch } : row)));
   const removeIngredient = (i) => setIngredients(ingredients.filter((_, ix) => ix !== i));
-  const onUnitCreated = (u) =>
-    setUnits((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
 
   const parseBulk = () => {
     const rows = bulk.split(/\n+/).map((l) => l.trim()).filter(Boolean);
@@ -163,11 +221,9 @@ function RecipeEdit() {
     if (!title.trim()) next.title = 'Title is required.';
     else {
       try {
-        const { exists } = await recipesService.validateTitle(title.trim(), id);
+        const { exists } = await recipesService.validateTitle?.(title.trim(), id);
         if (exists) next.title = 'A recipe with this title already exists.';
-      } catch {
-        // ignore network hiccups for realtime validation
-      }
+      } catch {}
     }
     if (!isValidUrl(sourceUrl)) next.sourceUrl = 'Please enter a valid URL.';
     if (!isNonNegNumber(servings)) next.servings = 'Servings must be a number ≥ 0.';
@@ -183,6 +239,20 @@ function RecipeEdit() {
 
   const hasErrors = Object.keys(errors).length > 0;
 
+  // key ingredient async options
+  const onKeyIngInput = (val) => {
+    clearTimeout(keyIngDebounce.current);
+    keyIngDebounce.current = setTimeout(async () => {
+      try {
+        if (!val?.trim()) { setKeyIngOptions([]); return; }
+        const list = await recipesService.searchProducts(val, 20);
+        setKeyIngOptions((list || []).map(p => ({ value: p.id, label: p.name })));
+      } catch (e) {
+        console.error('key ingredient search failed', e);
+      }
+    }, 250);
+  };
+
   const onSave = async () => {
     const latest = await runValidation();
     if (Object.keys(latest).length) { setWarnModal(true); return; }
@@ -197,10 +267,15 @@ function RecipeEdit() {
         yields: yields || null,
         favorite,
         imageUrl: imageUrl || null,
-        courseName: course || undefined,
-        cuisineName: cuisine || undefined,
-        keyIngredientText: keyIngredient || undefined,
-        tags,
+
+        courseName: courseSel?.label || undefined,
+        cuisineName: cuisineSel?.label || undefined,
+
+        keyIngredientId: keyIngSel && !keyIngSel.__isNew__ ? keyIngSel.value : undefined,
+        keyIngredientText: keyIngSel?.__isNew__ ? keyIngSel.label : undefined,
+
+        tags: (tagsSel || []).map(t => t.label),
+
         ingredients: ingredients.map((row) => {
           if (row.type === 'HEADING') {
             return {
@@ -302,45 +377,52 @@ function RecipeEdit() {
               className="textarea w-full rounded-box font-nunito-sans font-bold bg-base-content-content"
             />
 
-            <div className="join join-horizontal gap-2">
-              <label className="form-control w-full">
-                <input
-                  value={servings}
-                  onChange={(e) => setServings(e.target.value)}
-                  type="number"
-                  placeholder="Servings"
-                  className={`input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content ${errors.servings ? 'input-error' : ''}`}
-                />
-                {errors.servings && <span className="text-error text-xs mt-1">{errors.servings}</span>}
-              </label>
-              <input
-                value={yields}
-                onChange={(e) => setYields(e.target.value)}
-                type="text"
-                placeholder="Yields"
-                className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content"
+            <div className="join join-vertical gap-2">
+              <CreatableSelect
+                styles={selectStyle}
+                placeholder="Course (select or type to create)"
+                isClearable
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                options={courseOptions}
+                value={courseSel}
+                onChange={setCourseSel}
+              />
+              <CreatableSelect
+                styles={selectStyle}
+                placeholder="Cuisine (select or type to create)"
+                isClearable
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                options={cuisineOptions}
+                value={cuisineSel}
+                onChange={setCuisineSel}
+              />
+              <CreatableSelect
+                styles={selectStyle}
+                placeholder="Key Ingredient (search products or type free text)"
+                isClearable
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                options={keyIngOptions}
+                value={keyIngSel}
+                onInputChange={onKeyIngInput}
+                onChange={setKeyIngSel}
+                formatCreateLabel={(v) => `Use "${v}" as free text`}
               />
             </div>
 
-            <div className="join join-horizontal gap-2">
-              <input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
-                type="text"
-                placeholder="Add a tag and press Enter"
-                className="input text-neutral-content font-nunito-sans font-bold w-full rounded-box bg-base-content-content"
+            <div className="mt-2">
+              <CreatableSelect
+                styles={selectStyle}
+                isMulti
+                placeholder="Tags (select or type and press Enter)"
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                options={tagOptions}
+                value={tagsSel}
+                onChange={setTagsSel}
               />
-              <button className="btn" onClick={addTag}>Add</button>
-            </div>
-
-            <div className="flex flex-wrap gap-2 mt-2">
-              {tags.map((t) => (
-                <span key={t} className="badge badge-accent badge-md flex items-center gap-1">
-                  {t}
-                  <button type="button" className="btn btn-xs btn-circle btn-ghost" onClick={() => removeTag(t)}>✕</button>
-                </span>
-              ))}
             </div>
 
             <div className="form-control mt-2">
@@ -365,9 +447,8 @@ function RecipeEdit() {
             <h1 className="card-title font-nunito-sans font-bold text-xl text-base-content">Recipe Details</h1>
             <div className="skeleton h-48 w-48" />
             <div className="join join-vertical gap-y-1">
-              <input value={course} onChange={(e) => setCourse(e.target.value)} type="text" placeholder="Course" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
-              <input value={cuisine} onChange={(e) => setCuisine(e.target.value)} type="text" placeholder="Cuisine" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
-              <input value={keyIngredient} onChange={(e) => setKeyIngredient(e.target.value)} type="text" placeholder="Key Ingredient" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
+              <input value={yields} onChange={(e) => setYields(e.target.value)} type="text" placeholder="Yields" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
+              <input value={servings} onChange={(e) => setServings(e.target.value)} type="number" placeholder="Servings (duplicate input for convenience)" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
             </div>
           </div>
         </div>
