@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { recipesService } from '../services/recipesService';
+import Modal from '../components/common/Modal';
 
 function RecipeNew() {
   const navigate = useNavigate();
@@ -24,6 +25,11 @@ function RecipeNew() {
   const [bulk, setBulk] = useState('');
 
   const [saving, setSaving] = useState(false);
+
+  // validation state
+  const [errors, setErrors] = useState({});
+  const [warnModal, setWarnModal] = useState(false);
+  const debounceRef = useRef();
 
   const addTag = () => {
     const t = tagInput.trim();
@@ -57,11 +63,53 @@ function RecipeNew() {
   const updateStep = (i, v) => setSteps(steps.map((s, ix) => (ix === i ? v : s)));
   const removeStep = (i) => setSteps(steps.filter((_, ix) => ix !== i));
 
+  // simple validators
+  const isValidUrl = (u) => {
+    if (!u) return true;
+    try { new URL(u); return true; } catch { return false; }
+  };
+  const isNonNegNumber = (v) => v === '' || (!isNaN(Number(v)) && Number(v) >= 0);
+
+  const runValidation = async () => {
+    const next = {};
+
+    // Title
+    if (!title.trim()) next.title = 'Title is required.';
+    else {
+      // check uniqueness
+      try {
+        const { exists } = await recipesService.validateTitle(title.trim());
+        if (exists) next.title = 'A recipe with this title already exists.';
+      } catch {
+        // network errors aren’t shown as field errors
+      }
+    }
+
+    if (!isValidUrl(sourceUrl)) next.sourceUrl = 'Please enter a valid URL.';
+    if (!isNonNegNumber(servings)) next.servings = 'Servings must be a number ≥ 0.';
+
+    setErrors(next);
+    return next;
+  };
+
+  // debounce validation on key fields
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { runValidation(); }, 300);
+    return () => clearTimeout(debounceRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, sourceUrl, servings]);
+
+  const hasErrors = Object.keys(errors).length > 0;
+
   const onSave = async () => {
-    if (!title.trim()) {
-      alert('Title is required');
+    // final guard
+    const latest = await runValidation();
+    if (Object.keys(latest).length) {
+      setWarnModal(true);
       return;
     }
+
     setSaving(true);
     try {
       const payload = {
@@ -102,10 +150,11 @@ function RecipeNew() {
       navigate('/recipes');
     } catch (e) {
       if (e?.response?.status === 409) {
-        alert('A recipe with this title already exists.');
+        setErrors((prev) => ({ ...prev, title: 'A recipe with this title already exists.' }));
+        setWarnModal(true);
       } else {
         console.error(e);
-        alert('Failed to save recipe.');
+        setWarnModal(true);
       }
     } finally {
       setSaving(false);
@@ -121,7 +170,7 @@ function RecipeNew() {
           <div className="flex justify-end gap-1 pr-1 pt-2">
             <button className="btn m-2 rounded-box" onClick={() => navigate('/recipes')}>Recipes</button>
             <button className="btn btn-error rounded-box m-2" onClick={() => navigate('/recipes')}>Cancel</button>
-            <button className="btn btn-success rounded-box m-2" disabled={saving} onClick={onSave}>Save</button>
+            <button className="btn btn-success rounded-box m-2" disabled={saving || hasErrors} onClick={onSave}>Save</button>
           </div>
         </div>
       </div>
@@ -131,13 +180,27 @@ function RecipeNew() {
         <div className="card bg-base-100 shadow-sm card-lg w-full md:w-1/2 max-w-md h-full flex-1">
           <div className="card-body h-full flex flex-col">
             <h1 className="card-title font-nunito-sans font-bold text-xl text-base-content">Recipe Information</h1>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} type="text" placeholder="Recipe name" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
-            <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} type="text" placeholder="Source URL" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
+
+            <label className="form-control w-full">
+              <input value={title} onChange={(e) => setTitle(e.target.value)} type="text" placeholder="Recipe name" className={`input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content ${errors.title ? 'input-error' : ''}`} />
+              {errors.title && <span className="text-error text-xs mt-1">{errors.title}</span>}
+            </label>
+
+            <label className="form-control w-full">
+              <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} type="text" placeholder="Source URL" className={`input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content ${errors.sourceUrl ? 'input-error' : ''}`} />
+              {errors.sourceUrl && <span className="text-error text-xs mt-1">{errors.sourceUrl}</span>}
+            </label>
+
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="textarea w-full rounded-box font-nunito-sans font-bold bg-base-content-content" />
+
             <div className="join join-horizontal gap-2">
-              <input value={servings} onChange={(e) => setServings(e.target.value)} type="number" placeholder="Servings" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
+              <label className="form-control w-full">
+                <input value={servings} onChange={(e) => setServings(e.target.value)} type="number" placeholder="Servings" className={`input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content ${errors.servings ? 'input-error' : ''}`} />
+                {errors.servings && <span className="text-error text-xs mt-1">{errors.servings}</span>}
+              </label>
               <input value={yields} onChange={(e) => setYields(e.target.value)} type="text" placeholder="Yields" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
             </div>
+
             <div className="join join-horizontal gap-2">
               <input value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} type="text" placeholder="Add a tag and press Enter" className="input text-neutral-content font-nunito-sans font-bold w-full rounded-box bg-base-content-content" />
               <button className="btn" onClick={addTag}>Add</button>
@@ -172,9 +235,8 @@ function RecipeNew() {
         </div>
       </div>
 
-      {/* Bottom cards */}
+      {/* Bottom cards (unchanged table editors) */}
       <div className="flex flex-col md:flex-row gap-6 mt-4">
-        {/* Ingredients */}
         <div className="card bg-base-100 shadow-sm card-lg w-full md:w-1/2 max-w-md">
           <div className="card-body flex flex-col">
             <h1 className="card-title font-nunito-sans font-bold text-xl text-base-content">Ingredients</h1>
@@ -195,87 +257,38 @@ function RecipeNew() {
                     {ingredients.map((row, i) =>
                       row.type === 'HEADING' ? (
                         <tr key={`h-${i}`}>
-                          <td className="p-0">
-                            <button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button>
-                          </td>
+                          <td className="p-0"><button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button></td>
                           <td colSpan={4} className="px-1">
-                            <input
-                              value={row.heading || ''}
-                              onChange={(e) => updateIngredient(i, { heading: e.target.value, rawText: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="Section heading"
-                            />
+                            <input value={row.heading || ''} onChange={(e) => updateIngredient(i, { heading: e.target.value, rawText: e.target.value })} className="input input-bordered input-xs w-full" placeholder="Section heading" />
                           </td>
                         </tr>
                       ) : (
                         <tr key={i}>
-                          <td className="p-0">
-                            <button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button>
-                          </td>
-                          <td className="px-1">
-                            <input
-                              value={row.amount ?? ''}
-                              onChange={(e) => updateIngredient(i, { amount: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="e.g. 1.5"
-                            />
-                          </td>
-                          <td className="px-1">
-                            <input
-                              value={row.unitName || ''}
-                              onChange={(e) => updateIngredient(i, { unitName: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="cup, g, tbsp…"
-                            />
-                          </td>
-                          <td className="px-1">
-                            <input
-                              value={row.name || ''}
-                              onChange={(e) => updateIngredient(i, { name: e.target.value, candidateName: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="Ingredient name"
-                            />
-                          </td>
-                          <td className="px-1">
-                            <input
-                              value={row.notes || ''}
-                              onChange={(e) => updateIngredient(i, { notes: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="Notes"
-                            />
-                          </td>
+                          <td className="p-0"><button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button></td>
+                          <td className="px-1"><input value={row.amount ?? ''} onChange={(e) => updateIngredient(i, { amount: e.target.value })} className="input input-bordered input-xs w-full" placeholder="e.g. 1.5" /></td>
+                          <td className="px-1"><input value={row.unitName || ''} onChange={(e) => updateIngredient(i, { unitName: e.target.value })} className="input input-bordered input-xs w-full" placeholder="cup, g, tbsp…" /></td>
+                          <td className="px-1"><input value={row.name || ''} onChange={(e) => updateIngredient(i, { name: e.target.value, candidateName: e.target.value })} className="input input-bordered input-xs w-full" placeholder="Ingredient name" /></td>
+                          <td className="px-1"><input value={row.notes || ''} onChange={(e) => updateIngredient(i, { notes: e.target.value })} className="input input-bordered input-xs w-full" placeholder="Notes" /></td>
                         </tr>
                       )
                     )}
                   </tbody>
                 </table>
                 <div className="join join-horizontal gap-x-2 mt-3">
-                  <button className="btn btn-primary btn-soft btn-sm join-item rounded-box" onClick={addIngredient}>
-                    + Add Ingredient
-                  </button>
-                  <button className="btn btn-primary btn-soft btn-sm join-item rounded-box" onClick={addHeading}>
-                    + Add Heading
-                  </button>
+                  <button className="btn btn-primary btn-soft btn-sm join-item rounded-box" onClick={addIngredient}>+ Add Ingredient</button>
+                  <button className="btn btn-primary btn-soft btn-sm join-item rounded-box" onClick={addHeading}>+ Add Heading</button>
                 </div>
               </div>
 
               <input type="radio" name="ingredient-tabs" className="tab font-nunito-sans font-bold text-primary bg-base-content-content" aria-label="Bulk Item Entry" />
               <div className="tab-content border-base-300 bg-base-content-content p-2">
-                <textarea
-                  className="textarea h-24 w-full bg-base-content-content"
-                  placeholder={`Paste your ingredients here, one per line.\nFormat: Amount Unit Ingredient Name`}
-                  value={bulk}
-                  onChange={(e) => setBulk(e.target.value)}
-                />
-                <div className="mt-2">
-                  <button className="btn btn-primary btn-sm" onClick={parseBulk}>Parse & Add</button>
-                </div>
+                <textarea className="textarea h-24 w-full bg-base-content-content" placeholder={`Paste your ingredients here, one per line.\nFormat: Amount Unit Ingredient Name`} value={bulk} onChange={(e) => setBulk(e.target.value)} />
+                <div className="mt-2"><button className="btn btn-primary btn-sm" onClick={parseBulk}>Parse & Add</button></div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Instructions */}
         <div className="card bg-base-100 shadow-sm card-lg w-full md:w-1/2 max-w-md">
           <div className="card-body flex flex-col">
             <h1 className="card-title font-nunito-sans font-bold text-xl text-base-content">Instructions</h1>
@@ -283,12 +296,7 @@ function RecipeNew() {
               {steps.map((s, i) => (
                 <div key={i} className="join">
                   <span className="btn btn-ghost btn-sm join-item">{i + 1}</span>
-                  <textarea
-                    value={s}
-                    onChange={(e) => updateStep(i, e.target.value)}
-                    className="textarea textarea-bordered join-item w-full"
-                    placeholder="Instruction step"
-                  />
+                  <textarea value={s} onChange={(e) => updateStep(i, e.target.value)} className="textarea textarea-bordered join-item w-full" placeholder="Instruction step" />
                   <button className="btn btn-ghost join-item" onClick={() => removeStep(i)}>✕</button>
                 </div>
               ))}
@@ -297,6 +305,16 @@ function RecipeNew() {
           </div>
         </div>
       </div>
+
+      {/* Warning modal (styled) if user tries to save with errors */}
+      <Modal
+        open={warnModal}
+        onClose={() => setWarnModal(false)}
+        title="Please fix the issues"
+        message={errors.title || errors.sourceUrl || errors.servings ? 'Some fields need your attention before we can save.' : 'Unable to save right now.'}
+        cancelText="OK"
+        tone="warning"
+      />
     </div>
   );
 }

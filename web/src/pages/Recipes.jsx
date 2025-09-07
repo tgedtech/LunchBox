@@ -4,6 +4,7 @@ import { recipesService } from '../services/recipesService';
 import MissingImage from '../assets/images/missingImage.png';
 import HeartSolid from '../assets/icons/heart-solid.svg';
 import HeartRegular from '../assets/icons/heart-regular.svg';
+import Modal from '../components/common/Modal';
 
 function Recipes() {
   const navigate = useNavigate();
@@ -12,6 +13,9 @@ function Recipes() {
   const [sortKey, setSortKey] = useState('title');
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
+
+  // delete modal state
+  const [deleteModal, setDeleteModal] = useState({ open: false, id: null, title: '' });
 
   const load = async () => {
     setLoading(true);
@@ -44,17 +48,21 @@ function Recipes() {
 
   const openEdit = (id) => navigate(`/recipes/${id}/edit`);
 
-  const onDelete = async (e, id, title) => {
+  const askDelete = (e, id, title) => {
     e.stopPropagation();
     setOpenMenuId(null);
-    const ok = window.confirm(`Delete "${title}"? This cannot be undone.`);
-    if (!ok) return;
+    setDeleteModal({ open: true, id, title });
+  };
+
+  const confirmDelete = async () => {
+    const { id } = deleteModal;
     try {
       await recipesService.remove(id);
       setItems(prev => prev.filter(r => r.id !== id));
     } catch (err) {
       console.error(err);
-      alert('Failed to delete recipe.');
+    } finally {
+      setDeleteModal({ open: false, id: null, title: '' });
     }
   };
 
@@ -132,7 +140,7 @@ function Recipes() {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button className="btn btn-ghost btn-sm w-full justify-start" onClick={() => openEdit(r.id)}>Edit</button>
-                    <button className="btn btn-ghost btn-sm w-full justify-start text-error" onClick={(e) => onDelete(e, r.id, r.title)}>Delete…</button>
+                    <button className="btn btn-ghost btn-sm w-full justify-start text-error" onClick={(e) => askDelete(e, r.id, r.title)}>Delete…</button>
                   </div>
                 )}
               </figure>
@@ -162,6 +170,18 @@ function Recipes() {
           ))}
         </div>
       </div>
+
+      {/* Coseli-branded delete confirmation */}
+      <Modal
+        open={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, id: null, title: '' })}
+        onConfirm={confirmDelete}
+        title="Delete recipe?"
+        message={`Are you sure you want to delete “${deleteModal.title}”? This cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        tone="error"
+      />
     </div>
   );
 }

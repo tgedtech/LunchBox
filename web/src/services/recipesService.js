@@ -29,4 +29,8 @@ export const recipesService = {
     const { data } = await api.get('/recipes/_search/products', { params: { q, take } });
     return data;
   },
+  async validateTitle(title, excludeId) {
+    const { data } = await api.get('/recipes/_validate/title', { params: { title, excludeId } });
+    return data; // { exists: boolean }
+  },
 };

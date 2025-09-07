@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react';
+// web/src/pages/RecipeEdit.jsx
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { recipesService } from '../services/recipesService';
+import Modal from '../components/common/Modal';
 
 function RecipeEdit() {
-  const navigate = useNavigate();
   const { id } = useParams();
+  const navigate = useNavigate();
 
-  // base fields
+  const [loading, setLoading] = useState(true);
+
   const [title, setTitle] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [description, setDescription] = useState('');
@@ -15,66 +18,65 @@ function RecipeEdit() {
   const [favorite, setFavorite] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
 
-  // taxonomy-ish
   const [course, setCourse] = useState('');
   const [cuisine, setCuisine] = useState('');
   const [keyIngredient, setKeyIngredient] = useState('');
-
-  // tags
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
 
-  // details
   const [ingredients, setIngredients] = useState([]);
   const [steps, setSteps] = useState([]);
   const [bulk, setBulk] = useState('');
 
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // validation + modals
+  const [errors, setErrors] = useState({});
+  const [warnModal, setWarnModal] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const debounceRef = useRef();
+
+  // ----- Load existing recipe -----
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
         const r = await recipesService.byId(id);
-        // populate base
         setTitle(r.title || '');
         setSourceUrl(r.sourceUrl || '');
         setDescription(r.description || '');
-        setServings(r.servings ?? '');
+        setServings(typeof r.servings === 'number' ? String(r.servings) : '');
         setYields(r.yields || '');
         setFavorite(!!r.favorite);
         setImageUrl(r.imageUrl || '');
-
-        // taxonomy-ish
         setCourse(r.course?.name || '');
         setCuisine(r.cuisine?.name || '');
-        setKeyIngredient(r.keyIngredient?.name || r.keyIngredientText || '');
-
-        // tags
-        setTags((r.tags || []).map(t => t.tag?.name).filter(Boolean));
-
-        // ingredients
+        setKeyIngredient(r.keyIngredientText || r.keyIngredient?.name || '');
+        setTags((r.tags || []).map((t) => t.tag?.name).filter(Boolean));
         setIngredients(
-          (r.ingredients || []).map(row => ({
-            type: row.type, // 'ITEM' | 'HEADING'
-            amount: row.amount ?? null,
-            unitId: row.unitId ?? null,
-            unitName: row.unit?.name || '',
-            productId: row.productId ?? null,
-            name: row.name || '',
-            notes: row.notes || '',
-            heading: row.heading || '',
-            rawText: row.rawText || '',
-            candidateName: row.candidateName || row.name || '',
-          }))
+          (r.ingredients || []).map((row) =>
+            row.type === 'HEADING'
+              ? {
+                  type: 'HEADING',
+                  heading: row.heading || row.rawText || 'Section',
+                  rawText: row.rawText || row.heading || 'Section',
+                }
+              : {
+                  type: 'ITEM',
+                  amount: row.amount ?? '',
+                  unitId: row.unitId || null,
+                  unitName: row.unit?.name || '',
+                  productId: row.productId || null,
+                  name: row.name || '',
+                  notes: row.notes || '',
+                  rawText: row.rawText || '',
+                  candidateName: row.candidateName || row.name || '',
+                }
+          )
         );
-
-        // steps
-        setSteps((r.steps || []).sort((a,b)=>a.idx-b.idx).map(s => s.body || ''));
+        setSteps((r.steps || []).sort((a, b) => a.idx - b.idx).map((s) => s.body || ''));
       } catch (e) {
         console.error(e);
-        alert('Failed to load recipe.');
         navigate('/recipes');
       } finally {
         setLoading(false);
@@ -82,47 +84,105 @@ function RecipeEdit() {
     })();
   }, [id, navigate]);
 
-  // tag helpers
+  // ----- Tag helpers -----
   const addTag = () => {
-    const t = (tagInput || '').trim();
+    const t = tagInput.trim();
     if (!t || tags.includes(t)) return;
     setTags([...tags, t]);
     setTagInput('');
   };
-  const removeTag = (t) => setTags(tags.filter(x => x !== t));
+  const removeTag = (t) => setTags(tags.filter((x) => x !== t));
 
-  // ingredients helpers
+  // ----- Ingredient helpers -----
   const addIngredient = () =>
-    setIngredients([...ingredients, { type: 'ITEM', amount: '', unitId: null, unitName: '', productId: null, name: '', notes: '' }]);
+    setIngredients([
+      ...ingredients,
+      { type: 'ITEM', amount: '', unitId: null, unitName: '', productId: null, name: '', notes: '' },
+    ]);
   const addHeading = () =>
     setIngredients([...ingredients, { type: 'HEADING', heading: 'Section', rawText: 'Section' }]);
+
   const updateIngredient = (i, patch) =>
     setIngredients(ingredients.map((row, ix) => (ix === i ? { ...row, ...patch } : row)));
-  const removeIngredient = (i) =>
-    setIngredients(ingredients.filter((_, ix) => ix !== i));
+  const removeIngredient = (i) => setIngredients(ingredients.filter((_, ix) => ix !== i));
 
-  // bulk parse
   const parseBulk = () => {
     const rows = bulk.split(/\n+/).map((l) => l.trim()).filter(Boolean);
     const parsed = rows.map((line) => {
       const m = line.match(/^(\S+)\s+(\S+)\s+(.+)$/);
-      if (m) return { type: 'ITEM', amount: m[1], unitId: null, unitName: m[2], productId: null, name: m[3], notes: '', candidateName: m[3], rawText: line };
-      return { type: 'ITEM', amount: null, unitId: null, unitName: '', productId: null, name: line, notes: '', candidateName: line, rawText: line };
+      if (m) {
+        return {
+          type: 'ITEM',
+          amount: m[1],
+          unitId: null,
+          unitName: m[2],
+          productId: null,
+          name: m[3],
+          notes: '',
+          candidateName: m[3],
+          rawText: line,
+        };
+      }
+      return {
+        type: 'ITEM',
+        amount: null,
+        unitId: null,
+        unitName: '',
+        productId: null,
+        name: line,
+        notes: '',
+        candidateName: line,
+        rawText: line,
+      };
     });
     setIngredients([...ingredients, ...parsed]);
     setBulk('');
   };
 
-  // steps helpers
+  // ----- Steps helpers -----
   const addStep = () => setSteps([...steps, '']);
   const updateStep = (i, v) => setSteps(steps.map((s, ix) => (ix === i ? v : s)));
   const removeStep = (i) => setSteps(steps.filter((_, ix) => ix !== i));
 
-  const onSave = async () => {
-    if (!title.trim()) {
-      alert('Title is required');
-      return;
+  // ----- Validation -----
+  const isValidUrl = (u) => {
+    if (!u) return true;
+    try { new URL(u); return true; } catch { return false; }
+  };
+  const isNonNegNumber = (v) => v === '' || (!isNaN(Number(v)) && Number(v) >= 0);
+
+  const runValidation = async () => {
+    const next = {};
+    if (!title.trim()) next.title = 'Title is required.';
+    else {
+      try {
+        const { exists } = await recipesService.validateTitle(title.trim(), id);
+        if (exists) next.title = 'A recipe with this title already exists.';
+      } catch {
+        // ignore network error for field UI
+      }
     }
+    if (!isValidUrl(sourceUrl)) next.sourceUrl = 'Please enter a valid URL.';
+    if (!isNonNegNumber(servings)) next.servings = 'Servings must be a number ≥ 0.';
+    setErrors(next);
+    return next;
+  };
+
+  // Debounce on key fields
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { runValidation(); }, 300);
+    return () => clearTimeout(debounceRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, sourceUrl, servings]);
+
+  const hasErrors = Object.keys(errors).length > 0;
+
+  // ----- Save / Delete -----
+  const onSave = async () => {
+    const latest = await runValidation();
+    if (Object.keys(latest).length) { setWarnModal(true); return; }
+
     setSaving(true);
     try {
       const payload = {
@@ -133,13 +193,10 @@ function RecipeEdit() {
         yields: yields || null,
         favorite,
         imageUrl: imageUrl || null,
-
         courseName: course || undefined,
         cuisineName: cuisine || undefined,
         keyIngredientText: keyIngredient || undefined,
-
         tags,
-
         ingredients: ingredients.map((row) => {
           if (row.type === 'HEADING') {
             return {
@@ -152,8 +209,8 @@ function RecipeEdit() {
             type: 'ITEM',
             amount: row.amount === '' ? null : row.amount,
             unitId: row.unitId || null,
-            productId: row.productId || null,
             name: row.name || null,
+            productId: row.productId || null,
             notes: row.notes || null,
             rawText:
               row.rawText ||
@@ -161,34 +218,35 @@ function RecipeEdit() {
             candidateName: row.candidateName || row.name || null,
           };
         }),
-
         steps: steps.map((s) => String(s || '')),
       };
-
       await recipesService.update(id, payload);
       navigate('/recipes');
     } catch (e) {
-      console.error(e);
-      alert('Failed to save changes.');
+      if (e?.response?.status === 409) {
+        setErrors((prev) => ({ ...prev, title: 'A recipe with this title already exists.' }));
+        setWarnModal(true);
+      } else {
+        console.error(e);
+        setWarnModal(true);
+      }
     } finally {
       setSaving(false);
     }
   };
 
   const onDelete = async () => {
-    if (!window.confirm('Delete this recipe? This cannot be undone.')) return;
     try {
       await recipesService.remove(id);
       navigate('/recipes');
     } catch (e) {
       console.error(e);
-      alert('Failed to delete recipe.');
+    } finally {
+      setDeleteModal(false);
     }
   };
 
-  if (loading) {
-    return <div className="p-4 opacity-70">Loading…</div>;
-  }
+  if (loading) return <div className="p-4">Loading…</div>;
 
   return (
     <div className="bg-accent-content min-h-screen p-4">
@@ -199,8 +257,8 @@ function RecipeEdit() {
           <div className="flex justify-end gap-1 pr-1 pt-2">
             <button className="btn m-2 rounded-box" onClick={() => navigate('/recipes')}>Recipes</button>
             <button className="btn btn-error rounded-box m-2" onClick={() => navigate('/recipes')}>Cancel</button>
-            <button className="btn btn-outline btn-error rounded-box m-2" onClick={onDelete}>Delete</button>
-            <button className="btn btn-success rounded-box m-2" disabled={saving} onClick={onSave}>Save</button>
+            <button className="btn btn-warning rounded-box m-2" onClick={() => setDeleteModal(true)}>Delete…</button>
+            <button className="btn btn-success rounded-box m-2" disabled={saving || hasErrors} onClick={onSave}>Save</button>
           </div>
         </div>
       </div>
@@ -210,31 +268,91 @@ function RecipeEdit() {
         <div className="card bg-base-100 shadow-sm card-lg w-full md:w-1/2 max-w-md h-full flex-1">
           <div className="card-body h-full flex flex-col">
             <h1 className="card-title font-nunito-sans font-bold text-xl text-base-content">Recipe Information</h1>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} type="text" placeholder="Recipe name" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
-            <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} type="text" placeholder="Source URL" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="textarea w-full rounded-box font-nunito-sans font-bold bg-base-content-content" />
+
+            <label className="form-control w-full">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                type="text"
+                placeholder="Recipe name"
+                className={`input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content ${errors.title ? 'input-error' : ''}`}
+              />
+              {errors.title && <span className="text-error text-xs mt-1">{errors.title}</span>}
+            </label>
+
+            <label className="form-control w-full">
+              <input
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                type="text"
+                placeholder="Source URL"
+                className={`input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content ${errors.sourceUrl ? 'input-error' : ''}`}
+              />
+              {errors.sourceUrl && <span className="text-error text-xs mt-1">{errors.sourceUrl}</span>}
+            </label>
+
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Description"
+              className="textarea w-full rounded-box font-nunito-sans font-bold bg-base-content-content"
+            />
+
             <div className="join join-horizontal gap-2">
-              <input value={servings} onChange={(e) => setServings(e.target.value)} type="number" placeholder="Servings" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
-              <input value={yields} onChange={(e) => setYields(e.target.value)} type="text" placeholder="Yields" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
+              <label className="form-control w-full">
+                <input
+                  value={servings}
+                  onChange={(e) => setServings(e.target.value)}
+                  type="number"
+                  placeholder="Servings"
+                  className={`input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content ${errors.servings ? 'input-error' : ''}`}
+                />
+                {errors.servings && <span className="text-error text-xs mt-1">{errors.servings}</span>}
+              </label>
+              <input
+                value={yields}
+                onChange={(e) => setYields(e.target.value)}
+                type="text"
+                placeholder="Yields"
+                className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content"
+              />
             </div>
+
             <div className="join join-horizontal gap-2">
-              <input value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} type="text" placeholder="Add a tag and press Enter" className="input text-neutral-content font-nunito-sans font-bold w-full rounded-box bg-base-content-content" />
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
+                type="text"
+                placeholder="Add a tag and press Enter"
+                className="input text-neutral-content font-nunito-sans font-bold w-full rounded-box bg-base-content-content"
+              />
               <button className="btn" onClick={addTag}>Add</button>
             </div>
+
             <div className="flex flex-wrap gap-2 mt-2">
               {tags.map((t) => (
-                <span key={t} className="badge badge-accent badge-md flex items-center gap-1">{t}
+                <span key={t} className="badge badge-accent badge-md flex items-center gap-1">
+                  {t}
                   <button type="button" className="btn btn-xs btn-circle btn-ghost" onClick={() => removeTag(t)}>✕</button>
                 </span>
               ))}
             </div>
+
             <div className="form-control mt-2">
               <label className="label cursor-pointer gap-2">
                 <input type="checkbox" className="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} />
                 <span className="label-text">Mark as favorite</span>
               </label>
             </div>
-            <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} type="text" placeholder="Image URL (optional)" className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content" />
+
+            <input
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              type="text"
+              placeholder="Image URL (optional)"
+              className="input input-bordered rounded-box font-nunito-sans font-bold w-full bg-base-content-content"
+            />
           </div>
         </div>
 
@@ -274,9 +392,7 @@ function RecipeEdit() {
                     {ingredients.map((row, i) =>
                       row.type === 'HEADING' ? (
                         <tr key={`h-${i}`}>
-                          <td className="p-0">
-                            <button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button>
-                          </td>
+                          <td className="p-0"><button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button></td>
                           <td colSpan={4} className="px-1">
                             <input
                               value={row.heading || ''}
@@ -288,9 +404,7 @@ function RecipeEdit() {
                         </tr>
                       ) : (
                         <tr key={i}>
-                          <td className="p-0">
-                            <button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button>
-                          </td>
+                          <td className="p-0"><button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button></td>
                           <td className="px-1">
                             <input
                               value={row.amount ?? ''}
@@ -329,12 +443,8 @@ function RecipeEdit() {
                   </tbody>
                 </table>
                 <div className="join join-horizontal gap-x-2 mt-3">
-                  <button className="btn btn-primary btn-soft btn-sm join-item rounded-box" onClick={addIngredient}>
-                    + Add Ingredient
-                  </button>
-                  <button className="btn btn-primary btn-soft btn-sm join-item rounded-box" onClick={addHeading}>
-                    + Add Heading
-                  </button>
+                  <button className="btn btn-primary btn-soft btn-sm join-item rounded-box" onClick={addIngredient}>+ Add Ingredient</button>
+                  <button className="btn btn-primary btn-soft btn-sm join-item rounded-box" onClick={addHeading}>+ Add Heading</button>
                 </div>
               </div>
 
@@ -376,6 +486,26 @@ function RecipeEdit() {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <Modal
+        open={warnModal}
+        onClose={() => setWarnModal(false)}
+        title="Please fix the issues"
+        message={errors.title || errors.sourceUrl || errors.servings ? 'Some fields need your attention before we can save.' : 'Unable to save right now.'}
+        cancelText="OK"
+        tone="warning"
+      />
+      <Modal
+        open={deleteModal}
+        onClose={() => setDeleteModal(false)}
+        onConfirm={onDelete}
+        title="Delete recipe?"
+        message="Are you sure you want to delete this recipe? This cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        tone="error"
+      />
     </div>
   );
 }

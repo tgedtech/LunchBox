@@ -425,4 +425,25 @@ router.get('/_search/products', auth, async (req, res) => {
   }
 });
 
+// Title uniqueness check (per user). Returns { exists: boolean }
+router.get('/_validate/title', auth, async (req, res) => {
+  try {
+    const userId = req.userId ?? null;
+    const { title, excludeId } = req.query;
+    if (!title || !title.trim()) return res.json({ exists: false });
+    const found = await prisma.recipe.findFirst({
+      where: {
+        createdByUserId: userId,
+        title: title.trim(),
+        ...(excludeId ? { NOT: { id: String(excludeId) } } : {}),
+      },
+      select: { id: true },
+    });
+    res.json({ exists: !!found });
+  } catch (e) {
+    console.error('validate title error', e);
+    res.status(500).json({ error: 'validation failed' });
+  }
+});
+
 export default router;
