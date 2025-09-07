@@ -4,19 +4,43 @@ import axios from '../utils/axiosInstance';
 import shoppingListService from '../services/shoppingListService';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * ExpiredReportPage
+ *
+ * Purpose
+ * -------
+ * - Show all inventory items that are past their expiration date.
+ * - Let the user (a) remove expired stock and optionally add it to the shopping list,
+ *   or (b) directly add expired items to the shopping list for replacement.
+ * - If there are no expired items, optionally redirect back to the main Inventory page.
+ *
+ * Data Flow
+ * ---------
+ * - GET /inventory → full inventory list
+ *   → filtered client-side to items with expiration < now
+ * - Actions are confirmed in a modal. When an action completes, the page refetches
+ *   and (if empty) can redirect back to /inventory.
+ */
 function ExpiredReportPage() {
+  // List of items whose expiration date is in the past.
   const [expiredItems, setExpiredItems] = useState([]);
+
+  // State for the action modal (remove / addToList workflows act on a single item).
   const [actionModal, setActionModal] = useState({
     open: false,
-    actionType: null,
-    item: null,
-    maxQuantity: 1,
-    isExpired: true,
-    askAddToList: true,
+    actionType: null,     // 'remove' | 'addToList'
+    item: null,           // the inventory record being acted on
+    maxQuantity: 1,       // limit for removal quantity selector
+    isExpired: true,      // flag passed to modal for context/wording
+    askAddToList: true,   // whether the modal should show the "also add to list" prompt
   });
 
   const navigate = useNavigate();
 
+  /**
+   * Load all inventory, then keep only items already expired.
+   * If redirectIfEmpty is true and nothing is expired, send user back to /inventory.
+   */
   const fetchExpired = async (redirectIfEmpty = false) => {
     try {
       const res = await axios.get('/inventory');
@@ -25,6 +49,7 @@ function ExpiredReportPage() {
         item.expiration && new Date(item.expiration) < now
       );
       setExpiredItems(expired);
+
       if (redirectIfEmpty && expired.length === 0) {
         navigate('/inventory', { replace: true });
       }
@@ -33,11 +58,16 @@ function ExpiredReportPage() {
     }
   };
 
+  // Initial load: fetch the expired list once on mount.
   useEffect(() => {
     fetchExpired();
-    // eslint-disable-next-line
   }, []);
 
+  /**
+   * Open the modal for a given action on a specific expired item.
+   * - For 'remove', we also surface "add to list?" since the user likely needs a replacement.
+   * - For 'addToList', we do not ask again; it goes straight to the list on confirm.
+   */
   const openActionModal = (type, item) => {
     setActionModal({
       open: true,
@@ -49,6 +79,7 @@ function ExpiredReportPage() {
     });
   };
 
+  // Close the modal and reset its state.
   const closeActionModal = () => setActionModal({
     open: false,
     actionType: null,
@@ -58,9 +89,17 @@ function ExpiredReportPage() {
     askAddToList: true,
   });
 
+  /**
+   * Handle action confirmation from the modal.
+   * - If the action is 'addToList', create a shopping list entry.
+   * - If the action is 'remove' and the user checked "also add to list",
+   *   create a shopping list entry after removal.
+   * - After any action, refresh the expired list and navigate back to inventory if empty.
+   */
   const handleActionConfirm = async ({ quantity, addToList }) => {
     const { actionType, item } = actionModal;
 
+    // Add a replacement entry to the shopping list when appropriate.
     if ((actionType === 'addToList') || (actionType === 'remove' && addToList)) {
       try {
         await shoppingListService.addItem({
@@ -77,20 +116,23 @@ function ExpiredReportPage() {
       }
     }
 
+    // Close modal and refresh; redirect if no expired items remain.
     closeActionModal();
-    await fetchExpired(true); // Pass true to enable redirect if now empty
+    await fetchExpired(true);
   };
 
   return (
     <div className="w-full min-h-screen bg-base-100">
-      {/* Header for the page */}
+      {/* Page header (red theme to signal "expired/needs attention") */}
       <div className="bg-error min-h-15">
         <div className="flex justify-between">
-          <h1 className="text-xl font-quicksand font-bold text-error-content p-4">Expired Inventory</h1>
+          <h1 className="text-xl font-quicksand font-bold text-error-content p-4">
+            Expired Inventory
+          </h1>
         </div>
       </div>
 
-      {/* Main content container */}
+      {/* Expired items table with actions */}
       <div className="p-4 pb-24">
         <div className="overflow-x-auto rounded-lg shadow bg-base-100 font-nunito-sans">
           <table className="table w-full table-pin-rows">
@@ -149,6 +191,8 @@ function ExpiredReportPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Modal for "Remove" and "Add to List" actions on an expired item */}
         <ActionModal
           isOpen={actionModal.open}
           onClose={closeActionModal}
