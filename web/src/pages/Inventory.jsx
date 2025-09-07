@@ -10,9 +10,6 @@ import { useExpiredItems } from '../context/ExpiredItemsContext';
 /**
  * Group a flat list of inventory item instances by their productId.
  * Each "product group" represents all on-hand instances (e.g., multiple jars) of the same product.
- *
- * @param {Array} items - Inventory instances from the API.
- * @returns {Object} A map of productId -> [instances...]
  */
 function groupByProduct(items) {
   const map = {};
@@ -26,14 +23,9 @@ function groupByProduct(items) {
 
 /**
  * Determine expiration status buckets for a given expiration date.
- * - Expired:      past today
- * - Error window: expiring within 7 days
- * - Warning:      expiring within 14 days (but not within 7)
- *
- * These buckets drive color/state styling and button emphasis in the UI.
- *
- * @param {string|Date|null} expDate - An ISO date string or Date, or null if not tracked.
- * @returns {{isExpired:boolean,isErrorWindow:boolean,isWarningWindow:boolean}}
+ * - Expired: past today
+ * - Error window: within 7 days
+ * - Warning: within 14 days (but not within 7)
  */
 function getExpirationStatus(expDate) {
   if (!expDate) return { isExpired: false, isErrorWindow: false, isWarningWindow: false };
@@ -47,10 +39,7 @@ function getExpirationStatus(expDate) {
   return { isExpired: false, isErrorWindow: false, isWarningWindow: false };
 }
 
-/**
- * Return a DaisyUI class for the "Remove" action button based on expiration urgency.
- * Red (error) if expired/very soon, amber (warning) if within 14 days, otherwise primary.
- */
+/** Class for the "Remove" button based on expiration urgency. */
 function getRemoveBtnClass(item) {
   const { isExpired, isErrorWindow, isWarningWindow } = getExpirationStatus(item.expiration);
   if (isExpired || isErrorWindow) return "btn btn-xs btn-error";
@@ -58,20 +47,14 @@ function getRemoveBtnClass(item) {
   return "btn btn-xs btn-primary";
 }
 
-/**
- * Find the earliest (soonest) expiration among a set of instances of the same product.
- * Used to summarize a product group's next critical date in the collapsed view.
- */
+/** Soonest expiration among a set of instances for one product. */
 function getSoonestExpiration(items) {
   const valid = items.map(i => i.expiration).filter(Boolean);
   if (valid.length === 0) return null;
   return valid.map(d => new Date(d)).sort((a, b) => a - b)[0];
 }
 
-/**
- * Apply user-selected filters to the item list (search, location, category, expiration buckets).
- * This runs client-side on the already-fetched dataset.
- */
+/** Apply user-selected filters. */
 function applyFilters(items, filters) {
   return items.filter(item => {
     if (filters.search && !item.product?.name?.toLowerCase().includes(filters.search.toLowerCase()))
@@ -95,10 +78,7 @@ function applyFilters(items, filters) {
   });
 }
 
-/**
- * Apply client-side sorting to the filtered list.
- * Supported: Name (A→Z), Quantity (desc), Expiration (earliest first), Price (desc).
- */
+/** Apply client-side sorting. */
 function applySort(items, sortBy) {
   if (!sortBy) return items;
   const sorted = [...items];
@@ -111,24 +91,11 @@ function applySort(items, sortBy) {
 
 /**
  * Inventory page
- *
- * Purpose:
- * - Fetch and display all current inventory instances.
- * - Allow filtering/sorting.
- * - Collapse items into product groups with a one-row summary and an expandable detail view.
- * - Provide actions: Remove units, mark Open, and Add to shopping list.
- *
- * Data flows:
- * - /inventory      → item instances (each has product, location, store, qty, unit, expiration, price)
- * - /products, /categories, /locations, /stores, /units → master data for forms and filters
- *
- * UX:
- * - Top header: search, filters, sort, "Add item" button.
- * - Table: one row per product group with expand/collapse; details show each instance with actions.
- * - Modals: AddItemModal for creating new instances; ActionModal for per-instance operations.
+ * - Fetch/display current inventory instances.
+ * - Filter/sort and group by product.
+ * - Actions: Remove units, mark Open, Add to shopping list.
  */
 function Inventory() {
-  // Core datasets
   const [inventoryItems, setInventoryItems] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -136,7 +103,6 @@ function Inventory() {
   const [stores, setStores] = useState([]);
   const [units, setUnits] = useState([]);
 
-  // UI filter state
   const [filters, setFilters] = useState({
     search: '',
     location: '',
@@ -145,35 +111,28 @@ function Inventory() {
     sortBy: '',
   });
 
-  // Modal state
   const [showModal, setShowModal] = useState(false);
   const [actionModal, setActionModal] = useState({
     open: false,
-    actionType: null, // 'remove' | 'open' | 'addToList'
+    actionType: null,
     item: null,
     maxQuantity: 1,
     isExpired: false,
     askAddToList: false,
   });
 
-  // Track which product groups are expanded (productId -> bool)
   const [expandedProducts, setExpandedProducts] = useState({});
 
-  // Hooks/utilities
   const navigate = useNavigate();
   const { expiredCount, refreshExpired } = useExpiredItems();
 
-  // Filter out items that are already expired from the main list view.
-  // (Expired items can be managed elsewhere; this screen focuses on what's still usable or soon expiring.)
+  // Only show non-expired items in the main list.
   const now = new Date();
   const validItems = inventoryItems.filter(item =>
     !item.expiration || new Date(item.expiration) >= now
   );
 
-  /**
-   * Fetch the latest inventory from the API.
-   * Also triggers a refresh of the global expired-count badge via context.
-   */
+  /** Fetch inventory and update expired badge count. */
   const fetchInventory = async () => {
     try {
       const res = await axios.get('/inventory');
@@ -184,10 +143,7 @@ function Inventory() {
     }
   };
 
-  /**
-   * Fetch master data (products, categories, locations, stores, units)
-   * used for filters and the Add Item modal.
-   */
+  /** Fetch master data for filters and Add Item modal. */
   const fetchMasterData = async () => {
     try {
       const [productsRes, categoriesRes, locationsRes, storesRes, unitsRes] = await Promise.all([
@@ -207,18 +163,13 @@ function Inventory() {
     }
   };
 
-  /**
-   * Initial load: fetch inventory instances and master data once on mount.
-   */
+  /** Initial load. */
   useEffect(() => {
     fetchInventory();
     fetchMasterData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /**
-   * Expand/collapse a product group row in the table.
-   */
+  /** Toggle expand/collapse for a product group. */
   const toggleExpand = (productId) => {
     setExpandedProducts((prev) => ({
       ...prev,
@@ -226,12 +177,7 @@ function Inventory() {
     }));
   };
 
-  /**
-   * Open the action modal for a given operation on a specific item instance.
-   * @param {'remove'|'open'|'addToList'} type
-   * @param {Object} item - The inventory instance to act on.
-   * @param {Object} options - Additional flags for the modal.
-   */
+  /** Open the action modal for a specific item instance. */
   const openActionModal = (type, item, options = {}) => {
     setActionModal({
       open: true,
@@ -243,9 +189,7 @@ function Inventory() {
     });
   };
 
-  /**
-   * Close and reset the action modal.
-   */
+  /** Close/reset the action modal. */
   const closeActionModal = () => setActionModal({
     open: false,
     actionType: null,
@@ -258,8 +202,7 @@ function Inventory() {
   /**
    * Handle confirmation from ActionModal.
    * - addToList: push a prefilled item to the Shopping List service.
-   * - 'remove' and 'open' behaviors are implemented inside ActionModal via API calls or are no-ops here,
-   *   then we refresh inventory to reflect the change.
+   * - then refresh inventory to reflect changes.
    */
   const handleActionConfirm = async (actionData) => {
     const { quantity = 1 } = actionData || {};
@@ -285,14 +228,12 @@ function Inventory() {
     fetchInventory();
   };
 
-  // Apply filters and sort on the active (non-expired) items for display.
   const filtered = applySort(applyFilters(validItems, filters), filters.sortBy);
-
-  // Collapse to product groups for a cleaner, high-level table.
   const productGroups = groupByProduct(filtered);
 
   return (
-    <div className="w-full pb-24">
+    // Add page-wide background and full-height coverage (like Recipes.jsx)
+    <div className="bg-primary-content min-h-screen w-full pb-24">
       {/* Header with controls: search, filters, sort, and "Add Item" */}
       <InventoryHeader
         onAdd={() => setShowModal(true)}
@@ -307,7 +248,8 @@ function Inventory() {
 
       {/* Main table: product-level summary rows with expandable per-instance details */}
       <main className="flex-1 px-4 pb-24">
-        <table className="table w-full table-pin-rows mt-4 bg-neutral-content">
+        {/* Fix invalid bg- class; give table its own surface color if desired */}
+        <table className="table w-full table-pin-rows mt-4 bg-base-100">
           <colgroup>
             <col style={{ width: "4rem" }} />
             <col style={{ width: "32%" }} />
@@ -418,10 +360,7 @@ function Inventory() {
                                 </span>
                               </div>
 
-                              {/* Row actions for this instance:
-                                  - Remove some/all quantity
-                                  - Mark container as Open (if not already)
-                                  - Add this product back to the shopping list */}
+                              {/* Row actions */}
                               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2 z-10">
                                 <button
                                   className={getRemoveBtnClass(item)}

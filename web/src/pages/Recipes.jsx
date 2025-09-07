@@ -67,7 +67,7 @@ function Recipes() {
   };
 
   return (
-    <div className="bg-accent-content min-h-screen">
+    <div className="bg-primary-content min-h-screen">
       {/* Contextual menu */}
       <div className="bg-primary min-h-15">
         <div className="flex justify-between items-center">
