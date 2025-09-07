@@ -1,8 +1,8 @@
-// web/src/pages/RecipeEdit.jsx
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { recipesService } from '../services/recipesService';
 import Modal from '../components/common/Modal';
+import IngredientRow from '../components/recipes/IngredientRow';
 
 function RecipeEdit() {
   const { id } = useParams();
@@ -30,17 +30,26 @@ function RecipeEdit() {
 
   const [saving, setSaving] = useState(false);
 
-  // validation + modals
   const [errors, setErrors] = useState({});
   const [warnModal, setWarnModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
   const debounceRef = useRef();
 
-  // ----- Load existing recipe -----
+  // Units cache for the ingredient unit select
+  const [units, setUnits] = useState([]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
+        // Load units list (for unit creatable)
+        try {
+          const list = await recipesService.listUnits();
+          setUnits(list || []);
+        } catch (e) {
+          console.error('Failed to load units', e);
+        }
+
         const r = await recipesService.byId(id);
         setTitle(r.title || '');
         setSourceUrl(r.sourceUrl || '');
@@ -84,7 +93,6 @@ function RecipeEdit() {
     })();
   }, [id, navigate]);
 
-  // ----- Tag helpers -----
   const addTag = () => {
     const t = tagInput.trim();
     if (!t || tags.includes(t)) return;
@@ -93,7 +101,6 @@ function RecipeEdit() {
   };
   const removeTag = (t) => setTags(tags.filter((x) => x !== t));
 
-  // ----- Ingredient helpers -----
   const addIngredient = () =>
     setIngredients([
       ...ingredients,
@@ -105,6 +112,8 @@ function RecipeEdit() {
   const updateIngredient = (i, patch) =>
     setIngredients(ingredients.map((row, ix) => (ix === i ? { ...row, ...patch } : row)));
   const removeIngredient = (i) => setIngredients(ingredients.filter((_, ix) => ix !== i));
+  const onUnitCreated = (u) =>
+    setUnits((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
 
   const parseBulk = () => {
     const rows = bulk.split(/\n+/).map((l) => l.trim()).filter(Boolean);
@@ -139,12 +148,10 @@ function RecipeEdit() {
     setBulk('');
   };
 
-  // ----- Steps helpers -----
   const addStep = () => setSteps([...steps, '']);
   const updateStep = (i, v) => setSteps(steps.map((s, ix) => (ix === i ? v : s)));
   const removeStep = (i) => setSteps(steps.filter((_, ix) => ix !== i));
 
-  // ----- Validation -----
   const isValidUrl = (u) => {
     if (!u) return true;
     try { new URL(u); return true; } catch { return false; }
@@ -159,7 +166,7 @@ function RecipeEdit() {
         const { exists } = await recipesService.validateTitle(title.trim(), id);
         if (exists) next.title = 'A recipe with this title already exists.';
       } catch {
-        // ignore network error for field UI
+        // ignore network hiccups for realtime validation
       }
     }
     if (!isValidUrl(sourceUrl)) next.sourceUrl = 'Please enter a valid URL.';
@@ -168,17 +175,14 @@ function RecipeEdit() {
     return next;
   };
 
-  // Debounce on key fields
   useEffect(() => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => { runValidation(); }, 300);
     return () => clearTimeout(debounceRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, sourceUrl, servings]);
+  }, [title, sourceUrl, servings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasErrors = Object.keys(errors).length > 0;
 
-  // ----- Save / Delete -----
   const onSave = async () => {
     const latest = await runValidation();
     if (Object.keys(latest).length) { setWarnModal(true); return; }
@@ -389,57 +393,17 @@ function RecipeEdit() {
                     </tr>
                   </thead>
                   <tbody className="font-nunito-sans text-base-content">
-                    {ingredients.map((row, i) =>
-                      row.type === 'HEADING' ? (
-                        <tr key={`h-${i}`}>
-                          <td className="p-0"><button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button></td>
-                          <td colSpan={4} className="px-1">
-                            <input
-                              value={row.heading || ''}
-                              onChange={(e) => updateIngredient(i, { heading: e.target.value, rawText: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="Section heading"
-                            />
-                          </td>
-                        </tr>
-                      ) : (
-                        <tr key={i}>
-                          <td className="p-0"><button className="btn btn-ghost btn-xs" onClick={() => removeIngredient(i)}>✕</button></td>
-                          <td className="px-1">
-                            <input
-                              value={row.amount ?? ''}
-                              onChange={(e) => updateIngredient(i, { amount: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="e.g. 1.5"
-                            />
-                          </td>
-                          <td className="px-1">
-                            <input
-                              value={row.unitName || ''}
-                              onChange={(e) => updateIngredient(i, { unitName: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="cup, g, tbsp…"
-                            />
-                          </td>
-                          <td className="px-1">
-                            <input
-                              value={row.name || ''}
-                              onChange={(e) => updateIngredient(i, { name: e.target.value, candidateName: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="Ingredient name"
-                            />
-                          </td>
-                          <td className="px-1">
-                            <input
-                              value={row.notes || ''}
-                              onChange={(e) => updateIngredient(i, { notes: e.target.value })}
-                              className="input input-bordered input-xs w-full"
-                              placeholder="Notes"
-                            />
-                          </td>
-                        </tr>
-                      )
-                    )}
+                    {ingredients.map((row, i) => (
+                      <IngredientRow
+                        key={`${row.type}-${i}`}
+                        row={row}
+                        index={i}
+                        onChange={updateIngredient}
+                        onRemove={removeIngredient}
+                        allUnits={units}
+                        onUnitCreated={onUnitCreated}
+                      />
+                    ))}
                   </tbody>
                 </table>
                 <div className="join join-horizontal gap-x-2 mt-3">
