@@ -19,13 +19,11 @@ function RecipeEdit() {
   const [favorite, setFavorite] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
 
-  // Lookups (creatable)
   const [courseSel, setCourseSel] = useState(null);
   const [cuisineSel, setCuisineSel] = useState(null);
   const [tagsSel, setTagsSel] = useState([]);
   const [keyIngSel, setKeyIngSel] = useState(null);
 
-  // Suggestions
   const [courseOptions, setCourseOptions] = useState([]);
   const [cuisineOptions, setCuisineOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
@@ -43,12 +41,10 @@ function RecipeEdit() {
   const debounceRef = useRef();
   const keyIngDebounce = useRef();
 
-  // Units cache for IngredientRow unit creatable
   const [units, setUnits] = useState([]);
   const onUnitCreated = (u) =>
     setUnits((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
 
-  // react-select styles
   const selectStyle = {
     control: (provided, state) => ({
       ...provided,
@@ -80,33 +76,39 @@ function RecipeEdit() {
     (async () => {
       setLoading(true);
       try {
-        // suggestions from existing recipes
-        const list = await recipesService.all({ take: 300 });
-        const courses = new Set();
-        const cuisines = new Set();
-        const tags = new Set();
+        // --- Preferred: load complete lists from API
+        let lists;
+        try {
+          lists = await recipesService.lookupLists?.();
+        } catch {}
 
-        (list || []).forEach(r => {
-          if (r.course?.name) courses.add(r.course.name);
-          if (r.cuisine?.name) cuisines.add(r.cuisine.name);
-          (r.tags || []).forEach(t => t?.tag?.name && tags.add(t.tag.name));
-        });
+        if (lists && (lists.courses || lists.cuisines || lists.tags)) {
+          setCourseOptions((lists.courses || []).map(x => ({ value: x.name, label: x.name })));
+          setCuisineOptions((lists.cuisines || []).map(x => ({ value: x.name, label: x.name })));
+          setTagOptions((lists.tags || []).map(x => ({ value: x.name, label: x.name })));
+        } else {
+          // --- Fallback: derive from existing recipes (legacy behavior)
+          const list = await recipesService.all({ take: 300 });
+          const courses = new Set();
+          const cuisines = new Set();
+          const tags = new Set();
+          (list || []).forEach(r => {
+            if (r.course?.name) courses.add(r.course.name);
+            if (r.cuisine?.name) cuisines.add(r.cuisine.name);
+            (r.tags || []).forEach(t => t?.tag?.name && tags.add(t.tag.name));
+          });
+          setCourseOptions(Array.from(courses).sort().map(n => ({ value: n, label: n })));
+          setCuisineOptions(Array.from(cuisines).sort().map(n => ({ value: n, label: n })));
+          setTagOptions(Array.from(tags).sort().map(n => ({ value: n, label: n })));
+        }
 
-        const courseOpts = Array.from(courses).sort().map(n => ({ value: n, label: n }));
-        const cuisineOpts = Array.from(cuisines).sort().map(n => ({ value: n, label: n }));
-        const tagOpts = Array.from(tags).sort().map(n => ({ value: n, label: n }));
-
-        setCourseOptions(courseOpts);
-        setCuisineOptions(cuisineOpts);
-        setTagOptions(tagOpts);
-
-        // units (optional)
+        // Units (optional)
         try {
           const u = await recipesService.listUnits?.();
           if (Array.isArray(u)) setUnits(u);
         } catch {}
 
-        // load recipe
+        // Load recipe
         const r = await recipesService.byId(id);
         setTitle(r.title || '');
         setSourceUrl(r.sourceUrl || '');
@@ -119,7 +121,6 @@ function RecipeEdit() {
         setCourseSel(r.course?.name ? { value: r.course.name, label: r.course.name } : null);
         setCuisineSel(r.cuisine?.name ? { value: r.cuisine.name, label: r.cuisine.name } : null);
 
-        // key ingredient (prefer id if exists; else free text)
         if (r.keyIngredient?.id) {
           setKeyIngSel({ value: r.keyIngredient.id, label: r.keyIngredient.name });
         } else if (r.keyIngredientText) {
@@ -162,10 +163,7 @@ function RecipeEdit() {
   }, [id, navigate]);
 
   const addIngredient = () =>
-    setIngredients([
-      ...ingredients,
-      { type: 'ITEM', amount: '', unitId: null, unitName: '', productId: null, name: '', notes: '' },
-    ]);
+    setIngredients([...ingredients, { type: 'ITEM', amount: '', unitId: null, unitName: '', productId: null, name: '', notes: '' }]);
   const addHeading = () =>
     setIngredients([...ingredients, { type: 'HEADING', heading: 'Section', rawText: 'Section' }]);
 
@@ -235,11 +233,9 @@ function RecipeEdit() {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => { runValidation(); }, 300);
     return () => clearTimeout(debounceRef.current);
-  }, [title, sourceUrl, servings]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  }, [title, sourceUrl, servings]);
   const hasErrors = Object.keys(errors).length > 0;
 
-  // key ingredient async options
   const onKeyIngInput = (val) => {
     clearTimeout(keyIngDebounce.current);
     keyIngDebounce.current = setTimeout(async () => {

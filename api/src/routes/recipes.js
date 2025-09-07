@@ -97,6 +97,39 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+/**
+ * LOOKUP LISTS — must be defined BEFORE "/:id"
+ * Returns all courses, cuisines, and tags available to this user (including global/null owner).
+ */
+router.get('/_lists', auth, async (req, res) => {
+  try {
+    const userId = req.userId ?? null;
+
+    const [courses, cuisines, tags] = await prisma.$transaction([
+      prisma.recipeCourse.findMany({
+        where: { OR: [{ createdByUserId: userId }, { createdByUserId: null }] },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      }),
+      prisma.recipeCuisine.findMany({
+        where: { OR: [{ createdByUserId: userId }, { createdByUserId: null }] },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      }),
+      prisma.recipeTag.findMany({
+        where: { OR: [{ createdByUserId: userId }, { createdByUserId: null }] },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      }),
+    ]);
+
+    res.json({ courses, cuisines, tags });
+  } catch (e) {
+    console.error('Lookup lists error', e);
+    res.status(500).json({ error: 'Failed to load lists' });
+  }
+});
+
 router.get('/:id', auth, async (req, res) => {
   try {
     const userId = req.userId ?? null;
@@ -143,14 +176,14 @@ router.post('/', auth, async (req, res) => {
 
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
 
-    // Enforce unique title per user
+    // Unique title per user
     const titleExists = await prisma.recipe.findFirst({
       where: { createdByUserId: userId, title: title.trim() },
       select: { id: true },
     });
     if (titleExists) return res.status(409).json({ error: 'A recipe with this title already exists.' });
 
-    // Unique slug per user
+    // Slug
     let base = slugify(title);
     if (!base) base = 'recipe';
     let slug = base;
@@ -274,7 +307,7 @@ router.put('/:id', auth, async (req, res) => {
     });
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
-    // If title changed, enforce uniqueness per user
+    // Unique title per user (excluding this id)
     if (typeof title === 'string' && title.trim() && title.trim() !== existing.title) {
       const conflict = await prisma.recipe.findFirst({
         where: { createdByUserId: userId, title: title.trim(), NOT: { id } },
@@ -283,7 +316,7 @@ router.put('/:id', auth, async (req, res) => {
       if (conflict) return res.status(409).json({ error: 'A recipe with this title already exists.' });
     }
 
-    // Re-slug if title changed
+    // Slug update if title changed
     let updateSlug = undefined;
     if (title && title.trim() !== existing.title) {
       let base = slugify(title);
@@ -425,7 +458,6 @@ router.get('/_search/products', auth, async (req, res) => {
   }
 });
 
-// Title uniqueness check (per user). Returns { exists: boolean }
 router.get('/_validate/title', auth, async (req, res) => {
   try {
     const userId = req.userId ?? null;

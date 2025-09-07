@@ -47,4 +47,8 @@ export const recipesService = {
     const { data } = await api.post('/units', { name });
     return data;
   },
+  async lookupLists() {
+    const { data } = await api.get('/recipes/_lists');
+    return data; // { courses: [{id,name}], cuisines: [...], tags: [...] }
+  },
 };

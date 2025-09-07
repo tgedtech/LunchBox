@@ -16,13 +16,11 @@ function RecipeNew() {
   const [favorite, setFavorite] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
 
-  // Lookups (creatable)
-  const [courseSel, setCourseSel] = useState(null);   // { value: 'name', label: 'name' }
+  const [courseSel, setCourseSel] = useState(null);
   const [cuisineSel, setCuisineSel] = useState(null);
-  const [tagsSel, setTagsSel] = useState([]);         // [{ value: 'name', label: 'name' }]
-  const [keyIngSel, setKeyIngSel] = useState(null);   // { value: productId | undefined, label: 'name', __isNew__? }
+  const [tagsSel, setTagsSel] = useState([]);
+  const [keyIngSel, setKeyIngSel] = useState(null);
 
-  // Suggestions
   const [courseOptions, setCourseOptions] = useState([]);
   const [cuisineOptions, setCuisineOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
@@ -39,7 +37,6 @@ function RecipeNew() {
   const debounceRef = useRef();
   const keyIngDebounce = useRef();
 
-  // Units cache for IngredientRow unit creatable
   const [units, setUnits] = useState([]);
   const onUnitCreated = (u) =>
     setUnits((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
@@ -47,21 +44,31 @@ function RecipeNew() {
   useEffect(() => {
     (async () => {
       try {
-        // hydrate distinct course/cuisine/tag suggestions from existing recipes
-        const list = await recipesService.all({ take: 300 });
-        const courses = new Set();
-        const cuisines = new Set();
-        const tags = new Set();
+        // --- Preferred: load complete lists from API
+        let lists;
+        try {
+          lists = await recipesService.lookupLists?.();
+        } catch {}
 
-        (list || []).forEach(r => {
-          if (r.course?.name) courses.add(r.course.name);
-          if (r.cuisine?.name) cuisines.add(r.cuisine.name);
-          (r.tags || []).forEach(t => t?.tag?.name && tags.add(t.tag.name));
-        });
-
-        setCourseOptions(Array.from(courses).sort().map(n => ({ value: n, label: n })));
-        setCuisineOptions(Array.from(cuisines).sort().map(n => ({ value: n, label: n })));
-        setTagOptions(Array.from(tags).sort().map(n => ({ value: n, label: n })));
+        if (lists && (lists.courses || lists.cuisines || lists.tags)) {
+          setCourseOptions((lists.courses || []).map(x => ({ value: x.name, label: x.name })));
+          setCuisineOptions((lists.cuisines || []).map(x => ({ value: x.name, label: x.name })));
+          setTagOptions((lists.tags || []).map(x => ({ value: x.name, label: x.name })));
+        } else {
+          // --- Fallback: derive from existing recipes (legacy behavior)
+          const list = await recipesService.all({ take: 300 });
+          const courses = new Set();
+          const cuisines = new Set();
+          const tags = new Set();
+          (list || []).forEach(r => {
+            if (r.course?.name) courses.add(r.course.name);
+            if (r.cuisine?.name) cuisines.add(r.cuisine.name);
+            (r.tags || []).forEach(t => t?.tag?.name && tags.add(t.tag.name));
+          });
+          setCourseOptions(Array.from(courses).sort().map(n => ({ value: n, label: n })));
+          setCuisineOptions(Array.from(cuisines).sort().map(n => ({ value: n, label: n })));
+          setTagOptions(Array.from(tags).sort().map(n => ({ value: n, label: n })));
+        }
       } catch (e) {
         console.error('Failed to load recipe suggestions', e);
       }
@@ -70,13 +77,11 @@ function RecipeNew() {
         const u = await recipesService.listUnits?.();
         if (Array.isArray(u)) setUnits(u);
       } catch (e) {
-        // optional; IngredientRow can still work with creatable-only
         console.warn('Units fetch optional failed', e);
       }
     })();
   }, []);
 
-  // react-select styles to match your UI
   const selectStyle = {
     control: (provided, state) => ({
       ...provided,
@@ -104,7 +109,6 @@ function RecipeNew() {
     multiValueLabel: (p) => ({ ...p, color: '#3730a3' }),
   };
 
-  // Key ingredient async options load (products)
   const onKeyIngInput = (val) => {
     clearTimeout(keyIngDebounce.current);
     keyIngDebounce.current = setTimeout(async () => {
@@ -117,12 +121,6 @@ function RecipeNew() {
       }
     }, 250);
   };
-
-  const addTag = () => {
-    // handled via CreatableSelect (isMulti), keeping for parity
-  };
-
-  const removeTag = () => {};
 
   const addIngredient = () =>
     setIngredients([...ingredients, { type: 'ITEM', amount: '', unitId: null, unitName: '', productId: null, name: '', notes: '' }]);
@@ -162,9 +160,7 @@ function RecipeNew() {
       try {
         const { exists } = await recipesService.validateTitle?.(title.trim());
         if (exists) next.title = 'A recipe with this title already exists.';
-      } catch {
-        // ignore realtime hiccups
-      }
+      } catch {}
     }
 
     if (!isValidUrl(sourceUrl)) next.sourceUrl = 'Please enter a valid URL.';
@@ -178,8 +174,7 @@ function RecipeNew() {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => { runValidation(); }, 300);
     return () => clearTimeout(debounceRef.current);
-  }, [title, sourceUrl, servings]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  }, [title, sourceUrl, servings]);
   const hasErrors = Object.keys(errors).length > 0;
 
   const onSave = async () => {
@@ -203,7 +198,6 @@ function RecipeNew() {
         courseName: courseSel?.label || undefined,
         cuisineName: cuisineSel?.label || undefined,
 
-        // key ingredient: either id (selected existing product) or free-text
         keyIngredientId: keyIngSel && !keyIngSel.__isNew__ ? keyIngSel.value : undefined,
         keyIngredientText: keyIngSel?.__isNew__ ? keyIngSel.label : undefined,
 
