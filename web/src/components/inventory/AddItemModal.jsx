@@ -270,7 +270,7 @@ function AddItemModal({
             value={quantity}
             onChange={setQuantity}
             min={1}
-            inputClass="input bg-neutral-content w-20"
+            inputClass="input bg-primary-content w-20"
           />
 
           {/* Category */}
@@ -336,7 +336,7 @@ function AddItemModal({
             min={0}
             step="0.01"
             placeholder="Enter Price Paid"
-            className="input bg-neutral-content w-full"
+            className="input bg-primary-content w-full"
             value={price}
             onChange={e => setPrice(e.target.value)}
           />
@@ -345,7 +345,7 @@ function AddItemModal({
           <label className="label font-quicksand font-black text-base-content mt-4">Expiration or Best Buy Date</label>
           <input
             type="date"
-            className="input bg-neutral-content w-full"
+            className="input bg-primary-content w-full"
             value={expiration}
             onChange={e => setExpiration(e.target.value)}
           />
