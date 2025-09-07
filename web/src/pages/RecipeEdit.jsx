@@ -396,7 +396,7 @@ function RecipeEdit() {
               />
               <CreatableSelect
                 styles={selectStyle}
-                placeholder="Key Ingredient (search products or type free text)"
+                placeholder="Key Ingredient (search products ot rype to create)"
                 isClearable
                 menuPortalTarget={document.body}
                 menuPosition="fixed"
