@@ -249,7 +249,7 @@ function Inventory() {
       {/* Main table: product-level summary rows with expandable per-instance details */}
       <main className="flex-1 px-4 pb-24">
         {/* Fix invalid bg- class; give table its own surface color if desired */}
-        <table className="table w-full table-pin-rows mt-4 bg-base-100">
+        <table className="table w-full table-pin-rows mt-4 bg-base-200">
           <colgroup>
             <col style={{ width: "4rem" }} />
             <col style={{ width: "32%" }} />
@@ -316,7 +316,7 @@ function Inventory() {
                   {/* Detail rows: each physical instance with location, qty, open flag, store, expiration, price, and actions */}
                   {isExpanded && (
                     <>
-                      <tr className="bg-base-200 text-xs">
+                      <tr className="bg-secondary/30 text-xs">
                         <th></th>
                         <th>Location</th>
                         <th>Qty / Open</th>
