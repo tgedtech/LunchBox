@@ -47,17 +47,17 @@ function InventoryHeader({
         </div>
       </div>
       {showFilters && (
-        <div className="mt-0 p-4 bg-secondary-content space-y-3 border-t border-secondary">
+        <div className="mt-0 p-4 bg-base-content space-y-3 border-t border-secondary">
           <div className="flex flex-wrap gap-3">
             <input
               type="text"
               placeholder="Search by name"
-              className="input input-bordered input-sm w-48 text-primary"
+              className="input input-bordered input-sm w-48 text-base-content"
               value={filters.search}
               onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
             />
             <select
-              className="select select-bordered select-sm w-40 text-primary"
+              className="select select-bordered select-sm w-40 text-base-content"
               value={filters.location}
               onChange={(e) => setFilters((prev) => ({ ...prev, location: e.target.value }))}
             >
@@ -67,7 +67,7 @@ function InventoryHeader({
               ))}
             </select>
             <select
-              className="select select-bordered select-sm w-40 text-primary"
+              className="select select-bordered select-sm w-40 text-base-content"
               value={filters.category}
               onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))}
             >
@@ -77,7 +77,7 @@ function InventoryHeader({
               ))}
             </select>
             <select
-              className="select select-bordered select-sm w-40 text-primary"
+              className="select select-bordered select-sm w-40 text-base-content"
               value={filters.expiration}
               onChange={(e) => setFilters((prev) => ({ ...prev, expiration: e.target.value }))}
             >
@@ -87,7 +87,7 @@ function InventoryHeader({
               ))}
             </select>
             <select
-              className="select select-bordered select-sm w-40 text-primary"
+              className="select select-bordered select-sm w-40 text-base-content"
               value={filters.sortBy}
               onChange={(e) => setFilters((prev) => ({ ...prev, sortBy: e.target.value }))}
             >
@@ -99,7 +99,7 @@ function InventoryHeader({
           </div>
           <div className="text-right">
             <button
-              className="btn btn-sm btn-soft btn-secondary"
+              className="btn btn-sm btn-soft btn-primary"
               onClick={clearFilters}
             >
               Clear Filters
