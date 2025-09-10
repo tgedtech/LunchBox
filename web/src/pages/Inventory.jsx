@@ -317,9 +317,9 @@ function Inventory() {
                       {!isExpanded ? (
                         soonestExp
                           ? <span>
-                              <span className="font-medium text-xs text-gray-600">Next Exp:</span>{' '}
-                              <span>{new Date(soonestExp).toLocaleDateString()}</span>
-                            </span>
+                            <span className="font-medium text-xs text-gray-600">Next Exp:</span>{' '}
+                            <span>{new Date(soonestExp).toLocaleDateString()}</span>
+                          </span>
                           : <span className="text-xs text-gray-400">No Exp.</span>
                       ) : null}
                     </td>
@@ -354,7 +354,8 @@ function Inventory() {
                               {item.quantity} {item.unit}
                             </td>
                             <td className="relative min-w-[260px]">
-                              <div className="pr-36 flex flex-wrap gap-2 items-center">
+                              {/* make room for the action UI; less padding on mobile */}
+                              <div className="pr-28 sm:pr-36 flex flex-wrap gap-2 items-center">
                                 <span className="text-xs">{item.store?.name || ""}</span>
                                 <span className="text-xs">
                                   {item.expiration
@@ -372,56 +373,92 @@ function Inventory() {
                                     const hasTotal = typeof item.priceTotal === 'number' && item.priceTotal >= 0;
                                     const hasLegacy = typeof item.price === 'number' && item.price >= 0;
 
-                                    // If explicit per-unit is stored, show it (and total if present)
                                     if (hasPer) {
                                       return hasTotal
                                         ? `$${item.pricePerUnit.toFixed(2)} / ${item.unit} · $${item.priceTotal.toFixed(2)}`
                                         : `$${item.pricePerUnit.toFixed(2)} / ${item.unit}`;
                                     }
-
-                                    // If only total is present, compute per-unit when qty is known
                                     if (hasTotal && qty > 0) {
                                       const per = item.priceTotal / qty;
-                                      return `$${per.toFixed(2)} / ${item.unit} · $${item.priceTotal.toFixed(2)}`
+                                      return `$${per.toFixed(2)} / ${item.unit} · $${item.priceTotal.toFixed(2)}`;
                                     }
-
-                                    // Legacy: if basis is known, respect it; else treat legacy price as per-unit (safer default)
                                     if (hasLegacy) {
                                       if (hasBasis && item.priceBasis === 'TOTAL' && qty > 0) {
                                         const per = item.price / qty;
-                                        return `$${per.toFixed(2)} / ${item.unit} · $${item.price.toFixed(2)}`
+                                        return `$${per.toFixed(2)} / ${item.unit} · $${item.price.toFixed(2)}`;
                                       }
-                                      // default to per-unit display
                                       return `$${item.price.toFixed(2)} / ${item.unit}`;
                                     }
-
                                     return <span className="text-gray-400">No Price</span>;
                                   })()}
                                 </span>
                               </div>
 
-                              {/* Row actions */}
-                              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2 z-10">
-                                <button
-                                  className={getRemoveBtnClass(item)}
-                                  onClick={e => { e.stopPropagation(); openActionModal('remove', item); }}
-                                >
-                                  Remove
-                                </button>
-                                {!item.opened && (
+                              {/* Responsive Actions:
+                                  - 2xl+: inline 3 buttons
+                                  - <2xl: single "Actions" button with dropdown menu */}
+                              <div
+                                className="absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                                onClick={(e) => e.stopPropagation()} // prevent row toggle
+                              >
+                                {/* Inline buttons (show on >= 2xl) */}
+                                <div className="hidden 2xl:flex gap-2">
                                   <button
-                                    className="btn btn-xs btn-primary"
-                                    onClick={e => { e.stopPropagation(); openActionModal('open', item); }}
+                                    className={getRemoveBtnClass(item)}
+                                    onClick={() => openActionModal('remove', item)}
                                   >
-                                    Open
+                                    Remove
                                   </button>
-                                )}
-                                <button
-                                  className="btn btn-xs btn-accent text-accent-content"
-                                  onClick={e => { e.stopPropagation(); openActionModal('addToList', item); }}
-                                >
-                                  Add to List
-                                </button>
+                                  {!item.opened && (
+                                    <button
+                                      className="btn btn-xs btn-primary"
+                                      onClick={() => openActionModal('open', item)}
+                                    >
+                                      Open
+                                    </button>
+                                  )}
+                                  <button
+                                    className="btn btn-xs btn-accent text-accent-content"
+                                    onClick={() => openActionModal('addToList', item)}
+                                  >
+                                    Add to List
+                                  </button>
+                                </div>
+
+                                {/* Dropdown menu (show on < 2xl) */}
+                                <details className="2xl:hidden dropdown dropdown-left" onClick={(e) => e.stopPropagation()}>
+                                  <summary className="btn btn-primary btn-xs">Actions</summary>
+                                  <ul className="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40 z-20">
+                                    <li>
+                                      <button
+                                        className={getRemoveBtnClass(item)}
+                                        onClick={() => openActionModal('remove', item)}
+                                      >
+                                        Remove
+                                      </button>
+                                    </li>
+
+                                    {!item.opened && (
+                                      <li>
+                                        <button
+                                          className="btn btn-soft btn-primary btn-xs justify-start"
+                                          onClick={() => openActionModal('open', item)}
+                                        >
+                                          Open
+                                        </button>
+                                      </li>
+                                    )}
+
+                                    <li>
+                                      <button
+                                        className="btn btn-soft btn-accent btn-xs justify-start"
+                                        onClick={() => openActionModal('addToList', item)}
+                                      >
+                                        Add to List
+                                      </button>
+                                    </li>
+                                  </ul>
+                                </details>
                               </div>
                             </td>
                           </tr>
