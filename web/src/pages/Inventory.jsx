@@ -82,10 +82,26 @@ function applyFilters(items, filters) {
 function applySort(items, sortBy) {
   if (!sortBy) return items;
   const sorted = [...items];
-  if (sortBy === "Name") sorted.sort((a, b) => (a.product?.name || "").localeCompare(b.product?.name || ""));
-  if (sortBy === "Quantity") sorted.sort((a, b) => (b.quantity - a.quantity));
-  if (sortBy === "Expiration") sorted.sort((a, b) => new Date(a.expiration || 0) - new Date(b.expiration || 0));
-  if (sortBy === "Price") sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
+
+  if (sortBy === "Name") {
+    sorted.sort((a, b) => (a.product?.name || "").localeCompare(b.product?.name || ""));
+  }
+  if (sortBy === "Quantity") {
+    sorted.sort((a, b) => (b.quantity - a.quantity));
+  }
+  if (sortBy === "Expiration") {
+    sorted.sort((a, b) => new Date(a.expiration || 0) - new Date(b.expiration || 0));
+  }
+  if (sortBy === "Price") {
+    // Prefer per-unit, then total, then legacy price
+    const getPriceKey = (x) => {
+      if (typeof x.pricePerUnit === 'number') return x.pricePerUnit;
+      if (typeof x.priceTotal === 'number' && x.quantity > 0) return x.priceTotal / x.quantity;
+      if (typeof x.price === 'number') return x.price;
+      return -Infinity;
+    };
+    sorted.sort((a, b) => getPriceKey(b) - getPriceKey(a));
+  }
   return sorted;
 }
 
@@ -126,7 +142,6 @@ function Inventory() {
   const navigate = useNavigate();
   const { expiredCount, refreshExpired } = useExpiredItems();
 
-  // Only show non-expired items in the main list.
   const now = new Date();
   const validItems = inventoryItems.filter(item =>
     !item.expiration || new Date(item.expiration) >= now
@@ -232,7 +247,6 @@ function Inventory() {
   const productGroups = groupByProduct(filtered);
 
   return (
-    // Add page-wide background and full-height coverage (like Recipes.jsx)
     <div className="bg-primary-content min-h-screen w-full pb-24">
       {/* Header with controls: search, filters, sort, and "Add Item" */}
       <InventoryHeader
@@ -248,7 +262,6 @@ function Inventory() {
 
       {/* Main table: product-level summary rows with expandable per-instance details */}
       <main className="flex-1 px-4 pb-24">
-        {/* Fix invalid bg- class; give table its own surface color if desired */}
         <table className="table w-full table-pin-rows mt-4 bg-base-200">
           <colgroup>
             <col style={{ width: "4rem" }} />
@@ -301,7 +314,6 @@ function Inventory() {
                     <td className="font-quicksand font-bold">{product?.name}</td>
                     <td>{totalQty} {instances[0]?.unit}</td>
                     <td className="align-middle">
-                      {/* When collapsed, show the soonest expiration for this product group */}
                       {!isExpanded ? (
                         soonestExp
                           ? <span>
@@ -328,9 +340,7 @@ function Inventory() {
                           <tr
                             key={item.id}
                             className={
-                              expStatus.isWarningWindow
-                                ? "bg-warning/10 text-warning"
-                                : ""
+                              expStatus.isWarningWindow ? "bg-warning/10 text-warning" : ""
                             }
                           >
                             <td></td>
@@ -343,8 +353,8 @@ function Inventory() {
                             <td>
                               {item.quantity} {item.unit}
                             </td>
-                            <td className="relative min-w-[250px]">
-                              <div className="pr-32 flex flex-wrap gap-2 items-center">
+                            <td className="relative min-w-[260px]">
+                              <div className="pr-36 flex flex-wrap gap-2 items-center">
                                 <span className="text-xs">{item.store?.name || ""}</span>
                                 <span className="text-xs">
                                   {item.expiration
@@ -352,11 +362,41 @@ function Inventory() {
                                     : <span className="text-gray-400">No Exp.</span>
                                   }
                                 </span>
+
+                                {/* Price display (per-unit preferred, show total if available). Backward compatible. */}
                                 <span className="text-xs">
-                                  {typeof item.price === 'number'
-                                    ? `$${item.price.toFixed(2)}`
-                                    : <span className="text-gray-400">No Price</span>
-                                  }
+                                  {(() => {
+                                    const qty = Number(item.quantity) || 0;
+                                    const hasBasis = typeof item.priceBasis === 'string';
+                                    const hasPer = typeof item.pricePerUnit === 'number' && item.pricePerUnit >= 0;
+                                    const hasTotal = typeof item.priceTotal === 'number' && item.priceTotal >= 0;
+                                    const hasLegacy = typeof item.price === 'number' && item.price >= 0;
+
+                                    // If explicit per-unit is stored, show it (and total if present)
+                                    if (hasPer) {
+                                      return hasTotal
+                                        ? `$${item.pricePerUnit.toFixed(2)} / ${item.unit} · $${item.priceTotal.toFixed(2)}`
+                                        : `$${item.pricePerUnit.toFixed(2)} / ${item.unit}`;
+                                    }
+
+                                    // If only total is present, compute per-unit when qty is known
+                                    if (hasTotal && qty > 0) {
+                                      const per = item.priceTotal / qty;
+                                      return `$${per.toFixed(2)} / ${item.unit} · $${item.priceTotal.toFixed(2)}`
+                                    }
+
+                                    // Legacy: if basis is known, respect it; else treat legacy price as per-unit (safer default)
+                                    if (hasLegacy) {
+                                      if (hasBasis && item.priceBasis === 'TOTAL' && qty > 0) {
+                                        const per = item.price / qty;
+                                        return `$${per.toFixed(2)} / ${item.unit} · $${item.price.toFixed(2)}`
+                                      }
+                                      // default to per-unit display
+                                      return `$${item.price.toFixed(2)} / ${item.unit}`;
+                                    }
+
+                                    return <span className="text-gray-400">No Price</span>;
+                                  })()}
                                 </span>
                               </div>
 

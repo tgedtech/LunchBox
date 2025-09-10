@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import CreatableSelect from 'react-select/creatable';
 import axios from '../../utils/axiosInstance';
 import StepperInput from '../common/StepperInput';
@@ -34,7 +34,11 @@ function AddItemModal({
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
-  const [price, setPrice] = useState('');
+
+  // PRICE: new inputs
+  const [priceInput, setPriceInput] = useState('');
+  const [priceBasis, setPriceBasis] = useState('TOTAL'); // 'TOTAL' | 'PER_UNIT'
+
   const [expiration, setExpiration] = useState('');
   const [inventoryBehavior, setInventoryBehavior] = useState(1);
   const [error, setError] = useState('');
@@ -48,7 +52,8 @@ function AddItemModal({
       setSelectedLocation(null);
       setSelectedStore(null);
       setSelectedUnit(null);
-      setPrice('');
+      setPriceInput('');
+      setPriceBasis('TOTAL');
       setExpiration('');
       setInventoryBehavior(1);
       setError('');
@@ -102,10 +107,7 @@ function AddItemModal({
       transition: 'all 0.2s ease',
       '&:hover': { borderColor: '#60a5fa' },
     }),
-    menuPortal: (base) => ({
-      ...base,
-      zIndex: 9999,
-    }),
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
     menu: (provided) => ({
       ...provided,
       zIndex: 9999,
@@ -122,14 +124,8 @@ function AddItemModal({
       fontSize: '0.875rem',
       padding: '0.5rem 0.75rem',
     }),
-    placeholder: (provided) => ({
-      ...provided,
-      color: '#9ca3af',
-    }),
-    singleValue: (provided) => ({
-      ...provided,
-      color: '#111827',
-    }),
+    placeholder: (provided) => ({ ...provided, color: '#9ca3af' }),
+    singleValue: (provided) => ({ ...provided, color: '#111827' }),
   };
 
   function getIdFromSelect(val, arr) {
@@ -138,6 +134,30 @@ function AddItemModal({
     const found = arr.find((item) => item.name === val || item.id === val);
     return found ? found.id : null;
   }
+
+  // ---- Pricing calculations ----
+  const qtyNum = useMemo(() => {
+    const n = Number(quantity);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }, [quantity]);
+
+  const priceNum = useMemo(() => {
+    const n = Number(priceInput);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }, [priceInput]);
+
+  const priceComputed = useMemo(() => {
+    if (!qtyNum) return { priceTotal: 0, pricePerUnit: 0 };
+    if (priceBasis === 'TOTAL') {
+      const priceTotal = priceNum;
+      const pricePerUnit = qtyNum ? priceTotal / qtyNum : 0;
+      return { priceTotal, pricePerUnit };
+    } else {
+      const pricePerUnit = priceNum;
+      const priceTotal = pricePerUnit * qtyNum;
+      return { priceTotal, pricePerUnit };
+    }
+  }, [priceBasis, priceNum, qtyNum]);
 
   const handleSave = async () => {
     setApiError('');
@@ -151,7 +171,7 @@ function AddItemModal({
       setError('Quantity must be greater than zero');
       return;
     }
-    if (price && isNaN(Number(price))) {
+    if (priceInput && isNaN(Number(priceInput))) {
       setError('Price must be a valid number');
       return;
     }
@@ -215,6 +235,10 @@ function AddItemModal({
         }
       }
 
+      // Build payload with new pricing fields.
+      const pricePerUnit = Number(priceComputed.pricePerUnit.toFixed(4));
+      const priceTotal = Number(priceComputed.priceTotal.toFixed(2));
+
       await axios.post('/inventory', {
         productId,
         locationId: locId,
@@ -222,7 +246,16 @@ function AddItemModal({
         quantity: Number(quantity),
         expiration: expiration ? new Date(expiration).toISOString() : null,
         opened: false,
-        price: price ? parseFloat(price) : null,
+
+        // NEW fields for the upcoming migration:
+        priceBasis,
+        pricePerUnit,
+        priceTotal,
+
+        // Legacy field for backward-compatibility:
+        // we store per-unit here so the current UI shows price/item even before the migration lands.
+        price: priceInput ? pricePerUnit : null,
+
         storeId,
       });
 
@@ -329,17 +362,51 @@ function AddItemModal({
             formatCreateLabel={inputValue => `Create "${inputValue}"`}
           />
 
-          {/* Price */}
+          {/* Price with basis toggle + live preview */}
           <label className="label font-quicksand font-black text-base-content mt-4">Price</label>
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            placeholder="Enter Price Paid"
-            className="input bg-primary-content w-full"
-            value={price}
-            onChange={e => setPrice(e.target.value)}
-          />
+          <div className="p-3 rounded-box bg-base-200">
+            <div className="flex items-end gap-3">
+              <label className="form-control w-40">
+                <span className="label-text">{priceBasis === 'TOTAL' ? 'Total Price' : 'Price per Item'}</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder={priceBasis === 'TOTAL' ? 'e.g. 12.00' : 'e.g. 1.50'}
+                  className="input bg-primary-content w-full"
+                  value={priceInput}
+                  onChange={e => setPriceInput(e.target.value)}
+                />
+              </label>
+
+              <div className="form-control">
+                <span className="label-text">Basis</span>
+                <div className="join join-horizontal">
+                  <button
+                    type="button"
+                    className={`btn btn-sm join-item ${priceBasis === 'TOTAL' ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => setPriceBasis('TOTAL')}
+                  >
+                    Total
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm join-item ${priceBasis === 'PER_UNIT' ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => setPriceBasis('PER_UNIT')}
+                  >
+                    Per item
+                  </button>
+                </div>
+              </div>
+
+              <div className="ml-auto text-sm">
+                <div className="opacity-70">Preview</div>
+                <div>
+                  ${priceComputed.pricePerUnit.toFixed(2)} / {selectedUnit?.label || 'unit'} · Total ${priceComputed.priceTotal.toFixed(2)}
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Expiration */}
           <label className="label font-quicksand font-black text-base-content mt-4">Expiration or Best Buy Date</label>
